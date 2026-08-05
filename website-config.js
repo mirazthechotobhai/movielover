@@ -11,6 +11,7 @@
     siteName: 'GoToCinema',
     pageTitle: 'Go To Cinema - Watch Movies, TV Shows & Anime',
     logoText: 'GOTO CINEMA',
+    logoImagePosition: 2,
     logoImageUrl: 'logo-icon.png',
     logoImageAlt: 'GoToCinema logo'
   };
@@ -26,11 +27,27 @@
 
   function renderBrand(element) {
     var config = window.GTC_WEBSITE_CONFIG;
+    var text = String(config.logoText || config.siteName || '').trim();
     var imageUrl = String(config.logoImageUrl || '').trim();
-    var logoImage = imageUrl
-      ? '<img class="gtc-config-logo-img" src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(config.logoImageAlt || config.siteName) + '">'
-      : '';
-    element.innerHTML = logoImage + '<span class="gtc-config-logo-text">' + escapeHtml(config.logoText || config.siteName) + '</span>';
+    var imagePosition = Number.parseInt(config.logoImagePosition, 10);
+    var showImage = imageUrl && imageUrl !== '#' && imagePosition > 0;
+    var words = text ? text.split(/\s+/) : [];
+    var characterPosition = 0;
+    var imageAlt = escapeHtml(config.logoImageAlt || config.siteName || 'Website logo');
+
+    element.innerHTML = words.map(function (word, wordIndex) {
+      var wordClass = wordIndex === words.length - 1
+        ? 'gtc-config-logo-word gtc-config-logo-word--thin'
+        : 'gtc-config-logo-word gtc-config-logo-word--bold';
+      var wordMarkup = Array.from(word).map(function (character) {
+        characterPosition += 1;
+        if (showImage && characterPosition === imagePosition) {
+          return '<img class="gtc-config-logo-img" src="' + escapeHtml(imageUrl) + '" alt="' + imageAlt + '">';
+        }
+        return escapeHtml(character);
+      }).join('');
+      return '<span class="' + wordClass + '">' + wordMarkup + '</span>';
+    }).join(' ');
   }
 
   function applyWebsiteConfig() {
