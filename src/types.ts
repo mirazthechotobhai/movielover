@@ -1,27 +1,66 @@
-export type CategoryType = 'movies' | 'tv' | 'anime';
+export type MediaType = 'movie' | 'tv' | 'anime';
 
-export interface MediaItem {
-  id: string;
-  title: string;
-  category: CategoryType;
-  year: number;
-  releaseDate: string;
-  poster: string;
-  backdrop: string;
-  rating: number; // e.g., 8.9
-  genres: string[];
-  durationOrEpisodes: string; // e.g. "2h 49m" or "4 Seasons (37 Eps)"
-  directorOrStudio: string;
-  synopsis: string;
-  tagline?: string;
-  ageRating: string; // "PG-13", "TV-MA", "16+"
-  cast?: string[];
-  timelineEra: string; // e.g., "2024 - 2025 (Latest Releases)", "2020 - 2023 (Modern Era)", "2010 - 2019 (Golden Blockbusters)", "Classic Masterpieces"
+export interface RoomState {
+  roomCode: string;
+  isPlaying: boolean;
+  currentTime: number;
+  action: 'none' | 'play' | 'pause' | 'seek_forward' | 'seek_backward' | 'seek' | 'close' | 'change_media' | 'volume';
+  actionTimestamp?: number;
+  actionId?: string;
+  volume: number; // 0 to 1
+  status: 'waiting' | 'connected' | 'closed';
+  media?: {
+    id: string; // IMDb or TMDB ID
+    tmdbId?: number;
+    title: string;
+    type: MediaType;
+    posterPath?: string;
+    backdropPath?: string;
+    season?: number;
+    episode?: number;
+    releaseYear?: string;
+    overview?: string;
+  };
+  lastUpdated?: number;
 }
 
-export type RemoteButtonType = 'up' | 'down' | 'prev' | 'next' | 'ok';
+export interface TMDBMedia {
+  id: number;
+  title?: string;
+  name?: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  media_type?: 'movie' | 'tv';
+  release_date?: string;
+  first_air_date?: string;
+  vote_average: number;
+  vote_count: number;
+  genre_ids?: number[];
+  genres?: Array<{ id: number; name: string }>;
+  imdb_id?: string;
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+}
 
-export interface RemoteFeedback {
-  action: string;
-  timestamp: number;
+export interface TMDBEpisode {
+  id: number;
+  name: string;
+  overview: string;
+  episode_number: number;
+  season_number: number;
+  still_path: string | null;
+  air_date?: string;
+}
+
+export interface WatchlistItem {
+  id: string; // "movie_123" or "tv_456"
+  mediaId: string; // IMDb (tt...) or TMDB ID
+  tmdbId: number;
+  title: string;
+  type: MediaType;
+  posterPath: string | null;
+  rating: number;
+  year: string;
+  addedAt: number;
 }
