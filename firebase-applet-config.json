@@ -1,12 +1,12 @@
 {
-  "projectId": "gen-lang-client-0893712868",
-  "appId": "1:583358101087:web:f3967a19056fbcf5c30dea",
-  "apiKey": "AIzaSyA43x9EPKBy8TORPnmYq4lYLjDFgcC4I-I",
-  "authDomain": "gen-lang-client-0893712868.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-cinematicremote-e2ae38d5-9ee4-443c-b7d5-b9d92bbed630",
-  "storageBucket": "gen-lang-client-0893712868.firebasestorage.app",
-  "messagingSenderId": "583358101087",
+  "projectId": "onlinetv-2a646",
+  "appId": "1:1058040740024:web:7f49b442d850ac6c5c1c4d",
+  "apiKey": "AIzaSyD-8ll3D3m-by9-vQaKTTX-r1V2JObXilc",
+  "authDomain": "onlinetv-2a646.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-onlinetv-1d545108-32c0-482e-b3ed-e8bf8aed53d4",
+  "storageBucket": "onlinetv-2a646.firebasestorage.app",
+  "messagingSenderId": "1058040740024",
   "measurementId": "",
-  "oAuthClientId": "583358101087-2fd5q8lua1asgsu4ehf6kahti75lt9rh.apps.googleusercontent.com",
+  "oAuthClientId": "1058040740024-bi24j5hm90n03uc3la5pvlko3kq0giiq.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

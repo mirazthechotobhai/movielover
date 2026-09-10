@@ -1,6 +1,6 @@
 {
-  "name": "Cinematic Remote",
-  "description": "A modern cinematic remote and entertainment system powered by EmbedMaster, featuring full-screen player playback, separate external bottom controls, real-time remote page synchronization, and chronological timeline browsing.",
-  "requestFramePermissions": ["microphone", "camera"],
+  "name": "OnlineTV",
+  "description": "Cross-platform streaming web app for Smart TVs, mobile, and desktop with TMDB discovery, custom HTML5 player, and Firebase real-time remote control pairing.",
+  "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

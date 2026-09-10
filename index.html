@@ -2,47 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
-    <!-- API Configuration for TMDB & AniList embedded directly in HTML -->
-    <script>
-      window.CINEMATIC_CONFIG = {
-        TMDB_API_KEY: "57581da0c5497802a581bd56b93d7b0b",
-        ANILIST_CLIENT_ID: "42013",
-        TMDB_BASE_URL: "https://api.themoviedb.org/3",
-        TMDB_IMAGE_BASE: "https://image.tmdb.org/t/p",
-        ANILIST_GRAPHQL_URL: "https://graphql.anilist.co"
-      };
-    </script>
-
-    <script>
-      (function() {
-        try {
-          var _currentFetch = window.fetch ? window.fetch.bind(window) : undefined;
-          Object.defineProperty(window, 'fetch', {
-            get: function() {
-              return _currentFetch;
-            },
-            set: function(val) {
-              _currentFetch = val;
-            },
-            configurable: true,
-            enumerable: true
-          });
-        } catch (e) {
-          // Ignore
-        }
-      })();
-    </script>
-    <title>Cinematic Remote</title>
-    <meta name="description" content="A modern cinematic remote and entertainment system powered by EmbedMaster, featuring full-screen player playback, separate external bottom controls, real-time remote page synchronization, and chronological timeline browsing." />
-    <meta property="og:title" content="Cinematic Remote" />
-    <meta property="og:description" content="A modern cinematic remote and entertainment system powered by EmbedMaster, featuring full-screen player playback, separate external bottom controls, real-time remote page synchronization, and chronological timeline browsing." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <title>OnlineTV</title>
+    <meta name="description" content="Cross-platform streaming web app for Smart TVs, mobile, and desktop with TMDB discovery, custom HTML5 player, and Firebase real-time remote control pairing." />
+    <meta property="og:title" content="OnlineTV" />
+    <meta property="og:description" content="Cross-platform streaming web app for Smart TVs, mobile, and desktop with TMDB discovery, custom HTML5 player, and Firebase real-time remote control pairing." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#0b0f19" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="OnlineTV" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
   </head>
-  <body>
+  <body class="bg-neutral-950 text-neutral-100 antialiased selection:bg-cyan-500 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+
