@@ -3,59 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- API Configuration for TMDB & AniList embedded directly in HTML -->
+    <script>
+      window.CINEMATIC_CONFIG = {
+        TMDB_API_KEY: "57581da0c5497802a581bd56b93d7b0b",
+        ANILIST_CLIENT_ID: "42013",
+        TMDB_BASE_URL: "https://api.themoviedb.org/3",
+        TMDB_IMAGE_BASE: "https://image.tmdb.org/t/p",
+        ANILIST_GRAPHQL_URL: "https://graphql.anilist.co"
+      };
+    </script>
+
     <script>
       (function() {
         try {
-          var _rawFetch = typeof window !== 'undefined' ? window.fetch : null;
-          var _activeFetch = _rawFetch;
-
-          var descriptor = {
+          var _currentFetch = window.fetch ? window.fetch.bind(window) : undefined;
+          Object.defineProperty(window, 'fetch', {
             get: function() {
-              return _activeFetch || (typeof window !== 'undefined' ? window.fetch : undefined);
+              return _currentFetch;
             },
-            set: function(fn) {
-              _activeFetch = fn;
+            set: function(val) {
+              _currentFetch = val;
             },
             configurable: true,
             enumerable: true
-          };
-
-          try {
-            Object.defineProperty(window, 'fetch', descriptor);
-          } catch (e) {}
-
-          if (typeof Window !== 'undefined' && Window.prototype) {
-            try {
-              Object.defineProperty(Window.prototype, 'fetch', descriptor);
-            } catch (e) {}
-          }
-        } catch (err) {}
-
-        if (typeof window !== 'undefined') {
-          window.addEventListener('error', function(e) {
-            if (e && e.message && e.message.indexOf('fetch') !== -1 && e.message.indexOf('getter') !== -1) {
-              e.preventDefault();
-              if (e.stopImmediatePropagation) {
-                e.stopImmediatePropagation();
-              } else if (e.stopPropagation) {
-                e.stopPropagation();
-              }
-              return true;
-            }
-          }, true);
-
-          window.addEventListener('unhandledrejection', function(e) {
-            if (e && e.reason && e.reason.message && e.reason.message.indexOf('fetch') !== -1 && e.reason.message.indexOf('getter') !== -1) {
-              e.preventDefault();
-            }
           });
+        } catch (e) {
+          // Ignore
         }
       })();
     </script>
-    <title>StreamCast Remote Player</title>
-    <meta name="description" content="Remote-controlled movie and TV streaming web player powered by Firebase Realtime Database and TMDB integration." />
-    <meta property="og:title" content="StreamCast Remote Player" />
-    <meta property="og:description" content="Remote-controlled movie and TV streaming web player powered by Firebase Realtime Database and TMDB integration." />
+    <title>Cinematic Remote</title>
+    <meta name="description" content="A modern cinematic remote and entertainment system powered by EmbedMaster, featuring full-screen player playback, separate external bottom controls, real-time remote page synchronization, and chronological timeline browsing." />
+    <meta property="og:title" content="Cinematic Remote" />
+    <meta property="og:description" content="A modern cinematic remote and entertainment system powered by EmbedMaster, featuring full-screen player playback, separate external bottom controls, real-time remote page synchronization, and chronological timeline browsing." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
   </head>
@@ -64,4 +46,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
