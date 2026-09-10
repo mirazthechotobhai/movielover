@@ -1,99 +1,115 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile,
+  signOut, 
+  onAuthStateChanged,
+  type User 
+} from "firebase/auth";
+import { 
+  getFirestore, 
+  initializeFirestore,
+  doc, 
+  setDoc, 
+  getDoc, 
+  serverTimestamp 
+} from "firebase/firestore";
+import appletConfig from "../../firebase-applet-config.json";
 
-const app = getApps().find((a) => a.name === '[DEFAULT]') || initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Provisioned Firebase configuration
+export const firebaseConfig = {
+  apiKey: appletConfig.apiKey,
+  authDomain: appletConfig.authDomain,
+  projectId: appletConfig.projectId,
+  storageBucket: appletConfig.storageBucket,
+  messagingSenderId: appletConfig.messagingSenderId,
+  appId: appletConfig.appId,
+  measurementId: appletConfig.measurementId || ""
+};
+
+// Initialize Firebase safely
+export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
-export async function loginWithGoogle(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider);
-  return result.user;
-}
-
-export async function logout(): Promise<void> {
-  await signOut(auth);
-}
-
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  };
-}
-
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map((provider) => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || [],
-    },
-    operationType,
-    path,
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-// Connection test on boot as required by skill guidelines
-export async function testFirestoreConnection(): Promise<boolean> {
+export const db = (() => {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    return true;
+    const dbId = appletConfig.firestoreDatabaseId && appletConfig.firestoreDatabaseId !== "(default)"
+      ? appletConfig.firestoreDatabaseId
+      : undefined;
+    return initializeFirestore(app, {
+      ignoreUndefinedProperties: true,
+      experimentalForceLongPolling: true,
+    }, dbId);
+  } catch {
+    return appletConfig.firestoreDatabaseId && appletConfig.firestoreDatabaseId !== "(default)"
+      ? getFirestore(app, appletConfig.firestoreDatabaseId)
+      : getFirestore(app);
+  }
+})();
+
+// Test Firestore connection safely without throwing uncaught errors
+export async function checkFirebaseStatus(): Promise<{ connected: boolean; message: string }> {
+  try {
+    await getDoc(doc(db, 'test', 'connection'));
+    return { connected: true, message: 'Firebase Online' };
   } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.message.includes('the client is offline') ||
-        error.message.includes('unavailable') ||
-        error.message.includes('Failed to get document'))
-    ) {
-      console.warn('Firebase Firestore connection initializing or offline.');
-      return false;
+    if (error instanceof Error && (error.message.includes('offline') || error.message.includes('unavailable'))) {
+      return { connected: false, message: 'Firebase Offline Mode' };
     }
-    // Permission denied on test doc is expected under secure default-deny rules
-    // and confirms connection successfully reached the Firestore backend.
-    return true;
+    // Permission or other Firestore responses indicate the server was reached
+    return { connected: true, message: 'Firebase Active' };
   }
 }
 
-// Trigger initial connection verification after the window is fully loaded
-if (typeof window !== 'undefined') {
-  window.addEventListener(
-    'load',
-    () => {
-      setTimeout(() => {
-        testFirestoreConnection().catch(() => {});
-      }, 1500);
-    },
-    { once: true }
-  );
+// Save or update user profile & credentials in Firestore 'users' collection
+export async function syncUserToFirestore(
+  user: User, 
+  additionalData?: { password?: string; displayName?: string }
+) {
+  if (!user || !user.uid) return;
+
+  try {
+    const userRef = doc(db, "users", user.uid);
+    const docSnap = await getDoc(userRef);
+
+    const baseData: Record<string, any> = {
+      uid: user.uid,
+      email: user.email || "",
+      displayName: additionalData?.displayName || user.displayName || "Viewer",
+      photoURL: user.photoURL || null,
+      provider: user.providerData?.[0]?.providerId || "password",
+      lastLoginAt: serverTimestamp(),
+    };
+
+    if (additionalData?.password) {
+      baseData.password = additionalData.password;
+    }
+
+    if (!docSnap.exists()) {
+      baseData.createdAt = serverTimestamp();
+      await setDoc(userRef, baseData);
+    } else {
+      await setDoc(userRef, baseData, { merge: true });
+    }
+  } catch (error) {
+    console.error("Error writing user to Firestore:", error);
+  }
 }
+
+export { 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile,
+  signOut, 
+  onAuthStateChanged,
+  type User 
+};

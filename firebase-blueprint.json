@@ -1,83 +1,142 @@
 {
   "entities": {
-    "UserProfile": {
-      "title": "User Profile",
-      "description": "User profile information",
+    "User": {
+      "title": "User",
+      "description": "Registered user profile and authentication sync",
       "type": "object",
       "properties": {
-        "userId": { "type": "string", "description": "Unique identifier of the user", "maxLength": 128 },
-        "email": { "type": "string", "description": "User email address", "maxLength": 256 },
-        "displayName": { "type": "string", "description": "Display name of the user", "maxLength": 128 },
-        "createdAt": { "type": "string", "description": "Creation timestamp", "maxLength": 64 }
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User profile photo URL"
+        },
+        "provider": {
+          "type": "string",
+          "description": "Authentication provider"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account creation timestamp"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "Last sign-in timestamp"
+        }
       },
-      "required": ["userId", "email"]
-    },
-    "PlayerSettings": {
-      "title": "Player Settings",
-      "description": "User customized player options",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string", "description": "Owner user ID", "maxLength": 128 },
-        "skin": { "type": "string", "description": "Player skin ID", "maxLength": 64 },
-        "autoplay": { "type": "boolean", "description": "Autoplay state" },
-        "subtitles": { "type": "boolean", "description": "Subtitles state" },
-        "welcomePage": { "type": "boolean", "description": "Show welcome modal" },
-        "defaultVolume": { "type": "number", "description": "Default volume 0-100" },
-        "updatedAt": { "type": "string", "description": "Last updated timestamp", "maxLength": 64 }
-      },
-      "required": ["userId", "skin", "autoplay", "subtitles"]
-    },
-    "CustomMedia": {
-      "title": "Custom Media Stream",
-      "description": "User saved streams and bookmarks",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "description": "Unique stream ID", "maxLength": 128 },
-        "userId": { "type": "string", "description": "Owner user ID", "maxLength": 128 },
-        "title": { "type": "string", "description": "Media title", "maxLength": 256 },
-        "embedUrl": { "type": "string", "description": "Embed iframe or stream URL", "maxLength": 2048 },
-        "type": { "type": "string", "description": "movie or series", "maxLength": 64 },
-        "createdAt": { "type": "string", "description": "Created timestamp", "maxLength": 64 }
-      },
-      "required": ["id", "userId", "title", "embedUrl", "type"]
+      "required": ["uid", "email"]
     },
     "RemoteSession": {
-      "title": "Remote Control Session",
-      "description": "Real-time sync room between player monitor and mobile/detached remote",
+      "title": "Remote Session",
+      "description": "Real-time pairing and synchronization session between main remote and display",
       "type": "object",
       "properties": {
-        "sessionId": { "type": "string", "description": "Unique session code", "maxLength": 128 },
-        "hostUserId": { "type": "string", "description": "User ID who created the session", "maxLength": 128 },
-        "isPlaying": { "type": "boolean", "description": "Playback active status" },
-        "currentTime": { "type": "number", "description": "Current position in seconds" },
-        "duration": { "type": "number", "description": "Total duration in seconds" },
-        "volume": { "type": "number", "description": "Volume percentage 0 to 100" },
-        "isMuted": { "type": "boolean", "description": "Audio mute status" },
-        "mediaTitle": { "type": "string", "description": "Current media title", "maxLength": 256 },
-        "mediaUrl": { "type": "string", "description": "Current media URL", "maxLength": 2048 },
-        "lastCommand": { "type": "string", "description": "Latest transport command", "maxLength": 64 },
-        "lastCommandValue": { "type": "number", "description": "Numeric value for command if applicable" },
-        "updatedAt": { "type": "string", "description": "Last heartbeat timestamp", "maxLength": 64 }
+        "code": {
+          "type": "string",
+          "description": "6-character unique pairing code"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "User Gmail address"
+        },
+        "userDisplayName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "currentItem": {
+          "type": "object",
+          "description": "Currently selected media item"
+        },
+        "playingItem": {
+          "type": "object",
+          "description": "Currently playing media item or null"
+        },
+        "activeCategory": {
+          "type": "string",
+          "description": "Active category type"
+        },
+        "searchQuery": {
+          "type": "string",
+          "description": "Active search query"
+        },
+        "selectedIndex": {
+          "type": "number",
+          "description": "Selected item index"
+        },
+        "isQuickConnect": {
+          "type": "boolean",
+          "description": "True if this is the default same-network quick connect session (gotocinema)"
+        },
+        "networkIp": {
+          "type": "string",
+          "description": "Public IP/Network identifier for same-network verification"
+        },
+        "displayActive": {
+          "type": "boolean",
+          "description": "Whether the Remote Display window is currently open"
+        },
+        "displaySessionId": {
+          "type": "string",
+          "description": "Unique session ID for the active display window instance"
+        },
+        "displayLastHeartbeat": {
+          "type": "number",
+          "description": "Timestamp of last heartbeat from display window"
+        },
+        "connectedRemoteId": {
+          "type": "string",
+          "description": "Device ID of currently connected remote controller"
+        },
+        "connectedRemoteName": {
+          "type": "string",
+          "description": "Device name or description of connected remote"
+        },
+        "remoteLastHeartbeat": {
+          "type": "number",
+          "description": "Timestamp of last heartbeat from connected remote controller"
+        },
+        "remoteConnectedAt": {
+          "type": "number",
+          "description": "Timestamp when remote controller connected"
+        },
+        "disconnectedAt": {
+          "type": "string",
+          "description": "Timestamp when session or remote was disconnected"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Session creation timestamp"
+        }
       },
-      "required": ["sessionId", "hostUserId", "isPlaying", "volume", "isMuted"]
+      "required": ["code", "userId", "userEmail"]
     }
   },
   "firestore": {
     "/users/{userId}": {
-      "schema": "UserProfile",
-      "description": "User profile records"
+      "schema": "User",
+      "description": "User profile document accessible by the authenticated user"
     },
-    "/users/{userId}/settings/{settingId}": {
-      "schema": "PlayerSettings",
-      "description": "User configuration settings"
-    },
-    "/users/{userId}/customMedia/{mediaId}": {
-      "schema": "CustomMedia",
-      "description": "User saved custom media streams"
-    },
-    "/remoteSessions/{sessionId}": {
+    "/remote_sessions/{sessionCode}": {
       "schema": "RemoteSession",
-      "description": "Cloud remote control room for real-time sync across devices"
+      "description": "Live remote sync session pairing document keyed by 6-digit code"
     }
   }
 }
