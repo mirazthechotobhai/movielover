@@ -10,7 +10,8 @@ import {
   Unplug,
   Film,
   RefreshCw,
-  QrCode
+  QrCode,
+  X
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { MediaItem } from '../types';
@@ -32,23 +33,38 @@ export const LiveDisplayScreen: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [isQROverlayOpen, setIsQROverlayOpen] = useState(true);
 
-  // 1. Generate or read 4-digit roomCode
+  // 1. Generate a fresh, new, unique 4-digit roomCode every time TV Screen opens
   const [roomCode] = useState<string>(() => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const fromUrl = urlParams.get('room') || urlParams.get('code');
-      if (fromUrl && fromUrl.trim().length === 4) {
-        return fromUrl.trim();
-      }
-      return generate4DigitRoomCode();
-    } catch {
-      return generate4DigitRoomCode();
-    }
+    return generate4DigitRoomCode();
   });
 
   const [roomStatus, setRoomStatus] = useState<'waiting' | 'connected' | 'closed'>('waiting');
-  const [playingItem, setPlayingItem] = useState<MediaItem | null>(null);
+  const [connectionToast, setConnectionToast] = useState<string | null>(null);
+  // Initially auto-play default movie or media from URL params with full sound
+  const [playingItem, setPlayingItem] = useState<MediaItem | null>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const mediaId = urlParams.get('mediaId');
+      const cat = (urlParams.get('category') as any) || 'movies';
+      if (mediaId) {
+        const found = MEDIA_COLLECTION.find((m) => String(m.id) === mediaId);
+        if (found) return found;
+        return {
+          id: mediaId,
+          title: 'Now Playing',
+          year: new Date().getFullYear(),
+          category: cat,
+          poster: '',
+          backdrop: '',
+          rating: 8.8,
+          overview: '',
+        };
+      }
+    } catch (_) {}
+    return MEDIA_COLLECTION[0] || null;
+  });
   const [serverIndex, setServerIndex] = useState<number>(0);
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
@@ -56,12 +72,25 @@ export const LiveDisplayScreen: React.FC = () => {
   const [latestCommand, setLatestCommand] = useState<{ command: string; value?: any; extra?: any; timestamp: number } | null>(null);
   const lastActionTimestampRef = useRef<number>(0);
 
-  // 2. Generate QR code pointing to remote page with ?room={roomCode}
+  // Helper to generate the exact controller remote URL across all hosting environments
+  const getRemoteUrl = () => {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('view');
+      u.searchParams.set('room', roomCode);
+      u.hash = '';
+      return u.toString();
+    } catch {
+      return `${window.location.origin}/?room=${roomCode}`;
+    }
+  };
+
+  // 2. Generate high-resolution QR code pointing to remote page with ?room={roomCode}
   useEffect(() => {
     if (!roomCode) return;
-    const remoteUrl = `${window.location.origin}/?room=${roomCode}`;
+    const remoteUrl = getRemoteUrl();
     QRCode.toDataURL(remoteUrl, {
-      width: 320,
+      width: 500,
       margin: 2,
       color: {
         dark: '#000000',
@@ -72,14 +101,20 @@ export const LiveDisplayScreen: React.FC = () => {
       .catch((err) => console.warn('[LiveDisplayScreen] QR code generation error:', err));
   }, [roomCode]);
 
-  // 3. Initialize Firebase room node at rooms/{roomCode} on page load
+  // 3. Initialize Firebase room node at rooms/{roomCode} on page load in waiting state
   useEffect(() => {
+    const initialItem = playingItem || MEDIA_COLLECTION[0];
     initRoom(roomCode, {
       status: 'waiting',
-      isPlaying: false,
+      isPlaying: true,
       currentTime: 0,
       action: 'none',
-      volume: 1,
+      volume: 100,
+      playingItem: initialItem,
+      serverIndex: 0,
+      season: 1,
+      episode: 1,
+      lastCommandTimestamp: Date.now(),
     });
 
     const handleBeforeUnload = () => {
@@ -87,10 +122,13 @@ export const LiveDisplayScreen: React.FC = () => {
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('unload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('unload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+      closeRoom(roomCode);
     };
   }, [roomCode]);
 
@@ -99,27 +137,51 @@ export const LiveDisplayScreen: React.FC = () => {
     const unsubscribe = listenToRoom(roomCode, (data: RoomData | null) => {
       if (!data) return;
 
-      // Status changes: when 'connected', auto play default movie if none is playing
-      if (data.status) {
-        setRoomStatus(data.status);
-        if (data.status === 'connected' && !data.playingItem && data.action !== 'close') {
-          setPlayingItem(MEDIA_COLLECTION[0]);
-          setVolume(100);
+      // When remote connects (QR code scanned or 4-digit room code entered in remote and activated)
+      if (data.status === 'connected') {
+        setRoomStatus('connected');
+        
+        // Hide big QR & Room ID from the screen ONLY when remote actually connects!
+        setIsQROverlayOpen(false);
+
+        // Feedback sound & connection banner
+        soundFx.playClick('ok');
+        setConnectionToast(`📱 Remote Connected to Room #${roomCode} • Playing Now!`);
+        setTimeout(() => setConnectionToast(null), 3500);
+
+        // Keep background movie playing seamlessly or update if new movie selected
+        if (data.playingItem) {
+          setPlayingItem((prev) => {
+            if (!prev || prev.id !== data.playingItem?.id) {
+              return data.playingItem || prev;
+            }
+            return prev;
+          });
         }
+        setVolume(100);
+      } else if (data.status === 'waiting') {
+        setRoomStatus('waiting');
+        // STRICT: Stay open and never auto-hide until remote activates the room code
+        setIsQROverlayOpen(true);
       }
 
-      // Incoming movie/show to stream
-      if ('playingItem' in data) {
-        if (data.playingItem) {
-          setPlayingItem((prev) => (prev?.id === data.playingItem?.id ? prev : data.playingItem));
-          setVolume(100);
-        } else if (data.status === 'connected' && data.action !== 'close') {
-          setPlayingItem((prev) => prev || MEDIA_COLLECTION[0]);
-          setVolume(100);
-        } else {
-          setPlayingItem(null);
+      // Incoming movie/show to stream from remote (e.g. user selects a movie on remote)
+      if ('playingItem' in data && data.playingItem) {
+        setPlayingItem((prev) => {
+          if (!prev || prev.id !== data.playingItem?.id) {
+            return data.playingItem || prev;
+          }
+          return prev;
+        });
+        setVolume(100);
+        // Only hide QR overlay if remote is officially connected
+        if (data.status === 'connected') {
+          setIsQROverlayOpen(false);
         }
+      } else if (data.action === 'close') {
+        setPlayingItem(null);
       }
+
       if (typeof data.serverIndex === 'number') {
         setServerIndex(data.serverIndex);
       }
@@ -142,6 +204,9 @@ export const LiveDisplayScreen: React.FC = () => {
           if (data.action === 'close') {
             setPlayingItem(null);
           } else if (data.action === 'play') {
+            if (data.status === 'connected') {
+              setIsQROverlayOpen(false);
+            }
             setLatestCommand({ command: 'play', timestamp: ts });
           } else if (data.action === 'pause') {
             setLatestCommand({ command: 'pause', timestamp: ts });
@@ -165,12 +230,36 @@ export const LiveDisplayScreen: React.FC = () => {
   // 5. Cross-tab BroadcastChannel listener (local fallback)
   useEffect(() => {
     const unsubscribe = syncManager.subscribe((msg: SyncMessage) => {
-      if (msg.type === 'PLAY') {
-        setPlayingItem(msg.item);
-        if (typeof msg.serverIndex === 'number') setServerIndex(msg.serverIndex);
-        if (typeof msg.season === 'number') setSeason(msg.season);
-        if (typeof msg.episode === 'number') setEpisode(msg.episode);
-        setRoomStatus('connected');
+      if (msg.type === 'ROOM_UPDATE') {
+        const updateMsg = msg as any;
+        // Verify this update is for this roomCode and status is connected
+        if (updateMsg.roomCode === roomCode && updateMsg.data?.status === 'connected') {
+          setIsQROverlayOpen(false);
+          setRoomStatus('connected');
+          if (updateMsg.data?.playingItem) {
+            setPlayingItem(updateMsg.data.playingItem);
+          }
+          setVolume(100);
+          soundFx.playClick('ok');
+          setConnectionToast(`📱 Remote Paired with Room #${roomCode} • Playing Now!`);
+          setTimeout(() => setConnectionToast(null), 3500);
+        }
+      } else if (msg.type === 'PLAY') {
+        const playMsg = msg as any;
+        // Only accept PLAY to dismiss QR if targeted to this room or already connected
+        if (playMsg.roomCode === roomCode || roomStatus === 'connected') {
+          setIsQROverlayOpen(false);
+          setRoomStatus('connected');
+          setPlayingItem(msg.item);
+          setVolume(100);
+          soundFx.playClick('ok');
+          setConnectionToast(`📱 Remote Connected • Auto-Playing "${msg.item.title}"!`);
+          setTimeout(() => setConnectionToast(null), 3500);
+
+          if (typeof msg.serverIndex === 'number') setServerIndex(msg.serverIndex);
+          if (typeof msg.season === 'number') setSeason(msg.season);
+          if (typeof msg.episode === 'number') setEpisode(msg.episode);
+        }
       } else if (msg.type === 'CLOSE_PLAYER') {
         setPlayingItem(null);
       } else if (msg.type === 'PLAYER_COMMAND') {
@@ -185,7 +274,7 @@ export const LiveDisplayScreen: React.FC = () => {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [roomCode, roomStatus]);
 
   // Auto fullscreen when player is active
   useEffect(() => {
@@ -223,211 +312,195 @@ export const LiveDisplayScreen: React.FC = () => {
   };
 
   const isConnected = roomStatus === 'connected';
-
-  // Remote URL link for sharing or opening in new tab
-  const remotePageUrl = `${window.location.origin}/?room=${roomCode}`;
-
-  // When a movie is playing (e.g. automatically upon remote connection):
-  // Render ONLY the full-screen player - NO text above or below, NO headers, NO footers, NO extra buttons
-  if (playingItem) {
-    return (
-      <div
-        ref={containerRef}
-        id="live-display-screen-player-active"
-        className="fixed inset-0 w-screen h-screen min-h-screen overflow-hidden bg-black text-white m-0 p-0 z-50 select-none"
-        style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}
-      >
-        <FullScreenRemotePlayer
-          item={playingItem}
-          serverIndex={serverIndex}
-          season={season}
-          episode={episode}
-          pairingCode={roomCode}
-          latestCommand={latestCommand}
-          onExit={() => {
-            setPlayingItem(null);
-            updateRoom(roomCode, { playingItem: null, action: 'close', isPlaying: false });
-          }}
-        />
-      </div>
-    );
-  }
+  const remotePageUrl = getRemoteUrl();
+  const activeMediaItem = playingItem || MEDIA_COLLECTION[0];
 
   return (
     <div
       ref={containerRef}
       id="live-display-screen"
-      className="relative w-screen h-screen min-h-screen overflow-hidden bg-black text-white flex flex-col justify-between select-none font-sans"
+      className="fixed inset-0 w-screen h-screen min-h-screen overflow-hidden bg-black text-white m-0 p-0 z-50 select-none font-sans"
+      style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}
     >
-      {/* 1. CINEMATIC AMBIENT BACKGROUND */}
-      <div className="absolute inset-0 overflow-hidden w-full h-full">
-        <div className="w-full h-full relative flex items-center justify-center bg-gradient-to-br from-[#0c0d12] via-[#08080c] to-black">
-          {/* Ambient Lighting */}
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+      {/* 1. Full-Screen Video Canvas Playing in Background with Sound */}
+      <FullScreenRemotePlayer
+        item={activeMediaItem}
+        serverIndex={serverIndex}
+        season={season}
+        episode={episode}
+        pairingCode={roomCode}
+        latestCommand={latestCommand}
+        onExit={() => {
+          closeRoom(roomCode);
+          setPlayingItem(null);
+        }}
+      />
+
+      {/* 2. Connection Toast Notification */}
+      {connectionToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[10003] px-5 py-2.5 rounded-2xl bg-emerald-950/95 border border-emerald-500/70 text-emerald-200 text-xs sm:text-sm font-semibold flex items-center gap-2.5 shadow-2xl backdrop-blur-xl animate-fadeIn">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+          <span>{connectionToast}</span>
         </div>
-      </div>
+      )}
 
-      {/* 2. TOP BAR - FULLSCREEN & ROOM CODE BADGE */}
-      <header className="relative z-30 flex items-center justify-between px-4 py-3 sm:px-8 sm:py-4 bg-gradient-to-b from-black/90 via-black/40 to-transparent">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
-            <Tv2 className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-sm sm:text-base font-bold tracking-wider text-zinc-100 flex items-center gap-2">
-              <span>TV Screen</span>
-              {isConnected ? (
-                <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Remote Connected
-                </span>
-              ) : (
-                <span className="text-[11px] font-mono text-amber-400/90 font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30">
-                  Waiting for Remote
-                </span>
-              )}
-            </h1>
-            <p className="text-[11px] text-zinc-400 font-mono">
-              Room Code: <strong className="text-white">#{roomCode}</strong>
-            </p>
-          </div>
-        </div>
+      {/* 3. FULL-SCREEN QR CODE & ROOM ID PAIRING DISPLAY (Active until Remote pairs) */}
+      {/* Covers 100% full screen with large QR and Room ID; hides automatically when Remote activates */}
+      {isQROverlayOpen && (
+        <div 
+          id="tv-fullscreen-pairing-overlay"
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-black z-[10001] flex flex-col justify-between select-none overflow-y-auto font-sans"
+          style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}
+        >
+          {/* Subtle Ambient Glow Behind QR */}
+          <div className="absolute top-1/3 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-1/4 right-1/3 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex items-center gap-2">
-          {/* TV Fullscreen Button */}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold transition-all cursor-pointer shadow-md"
-            title="Toggle TV Fullscreen"
-          >
-            {isFullscreen ? (
-              <>
-                <Minimize className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">Exit Fullscreen</span>
-              </>
-            ) : (
-              <>
-                <Maximize className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">TV Fullscreen</span>
-              </>
-            )}
-          </button>
-        </div>
-      </header>
-
-      {/* 3. CENTER OVERLAY: PROMINENT QR CODE & 4-DIGIT ROOM CODE */}
-      {/* When status changes to 'connected', this overlay is hidden! */}
-      {!isConnected && (
-        <div className="relative z-30 flex-1 flex items-center justify-center p-4">
-          <div className="max-w-md w-full rounded-3xl bg-zinc-950/90 border border-zinc-800/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center animate-fadeIn">
-            {/* Top Icon Badge */}
-            <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-4">
-              <QrCode className="w-7 h-7" />
-            </div>
-
-            <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight mb-1">
-              Connect Your Remote Control
-            </h2>
-            <p className="text-zinc-400 text-xs sm:text-sm mb-6">
-              Scan QR code & connect your remote
-            </p>
-
-            {/* Prominent QR Code container */}
-            <div className="relative mx-auto w-64 h-64 sm:w-72 sm:h-72 p-4 rounded-2xl bg-white flex items-center justify-center shadow-xl border border-zinc-200">
-              {qrDataUrl ? (
-                <img 
-                  src={qrDataUrl} 
-                  alt={`Room QR Code ${roomCode}`}
-                  className="w-full h-full object-contain rounded-lg"
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-2 text-zinc-600">
-                  <RefreshCw className="w-6 h-6 animate-spin text-zinc-500" />
-                  <span className="text-xs font-medium">Generating QR...</span>
-                </div>
-              )}
-            </div>
-
-            {/* Numeric 4-digit Room Code display */}
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <div className="px-5 py-2.5 rounded-2xl bg-zinc-900 border border-zinc-700/80 flex items-center gap-2.5 shadow-inner">
-                <span className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">Room Code:</span>
-                <span className="text-xl sm:text-2xl font-mono font-black tracking-widest text-amber-400">
-                  {roomCode}
-                </span>
+          {/* Top Bar of Full-Screen Pairing View */}
+          <header className="relative z-20 w-full px-6 sm:px-12 py-5 sm:py-7 flex items-center justify-between border-b border-zinc-900 bg-black/90 backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                <Tv2 className="w-6 h-6" />
               </div>
-              <button
-                type="button"
-                onClick={handleCopyCode}
-                className="p-3 rounded-2xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                title="Copy Room Code"
-              >
-                {copiedCode ? (
-                  <Check className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Copy className="w-4 h-4 text-zinc-400" />
-                )}
-              </button>
+              <div>
+                <h1 className="text-base sm:text-lg font-black tracking-wider text-white flex items-center gap-2.5">
+                  <span>TV SCREEN DISPLAY</span>
+                  <span className="text-[11px] font-mono uppercase px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-400 font-bold">
+                    Pairing Mode
+                  </span>
+                </h1>
+                <p className="text-xs text-zinc-400 hidden sm:block">
+                  Connect mobile remote to control stream, switch movies, and manage playback
+                </p>
+              </div>
             </div>
 
-            {/* Direct Open in New Tab Button (for desktop or phone browser testing) */}
-            <div className="mt-5">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/90 border border-zinc-800 text-xs font-mono text-zinc-300 shadow-inner">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+              <span className="text-amber-300 font-semibold">Waiting for Remote</span>
+            </div>
+          </header>
+
+          {/* Center Stage: Immense Full-Screen QR Code & Room ID */}
+          <main className="relative z-20 flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 sm:gap-12 lg:gap-20 px-6 sm:px-12 py-6 w-full max-w-7xl mx-auto my-auto">
+            {/* Left Column: Big Size High-Resolution QR Code */}
+            <div className="flex flex-col items-center shrink-0">
+              <div className="w-72 h-72 sm:w-84 sm:h-84 md:w-96 md:h-96 lg:w-[400px] lg:h-[400px] xl:w-[440px] xl:h-[440px] p-4 sm:p-5 rounded-3xl bg-white shadow-[0_0_80px_rgba(245,158,11,0.2)] border-4 border-amber-500/60 flex items-center justify-center">
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt={`Room QR Code ${roomCode}`}
+                    className="w-full h-full object-contain rounded-2xl block"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-zinc-600">
+                    <RefreshCw className="w-10 h-10 animate-spin text-amber-500" />
+                    <span className="text-xs font-bold text-zinc-400">Generating TV QR Code...</span>
+                  </div>
+                )}
+              </div>
+              <p className="mt-3.5 text-xs sm:text-sm text-zinc-400 text-center font-medium">
+                📱 Scan QR code with your phone camera to pair instantly
+              </p>
+            </div>
+
+            {/* Right Column: Prominent Room ID & Pairing Steps */}
+            <div className="flex-1 flex flex-col items-start justify-center max-w-xl w-full text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-400 text-xs font-bold uppercase tracking-wider mb-3">
+                <QrCode className="w-4 h-4 text-amber-400" />
+                <span>Quick TV Pairing</span>
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight mb-2">
+                Connect Remote Controller
+              </h2>
+              <p className="text-zinc-400 text-xs sm:text-sm lg:text-base leading-relaxed mb-5">
+                Scan the QR code on the left or type this 4-digit Room ID into your remote header and tap <strong className="text-amber-400 font-semibold">Active</strong>.
+              </p>
+
+              {/* Massive ROOM ID Card */}
+              <div className="w-full p-4 sm:p-6 rounded-3xl bg-zinc-950 border-2 border-amber-500/70 shadow-[0_0_50px_rgba(245,158,11,0.15)] flex items-center justify-between gap-4 mb-6">
+                <div>
+                  <span className="text-[11px] sm:text-xs font-mono font-bold text-zinc-400 uppercase tracking-widest block mb-1">
+                    ROOM ID
+                  </span>
+                  <span className="text-4xl sm:text-5xl lg:text-6xl font-mono font-black tracking-widest text-amber-400">
+                    #{roomCode}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className="px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-md"
+                  title="Copy Room ID"
+                >
+                  {copiedCode ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span className="text-emerald-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-amber-400" />
+                      <span>Copy ID</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* 3 Step Instructions */}
+              <div className="w-full space-y-2.5 text-xs sm:text-sm text-zinc-300 mb-5">
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                  <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 font-mono font-bold text-xs flex items-center justify-center shrink-0">1</span>
+                  <span>Open the remote on your phone or scan the QR code</span>
+                </div>
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                  <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 font-mono font-bold text-xs flex items-center justify-center shrink-0">2</span>
+                  <span>Enter Room ID <strong className="text-amber-400 font-mono">#{roomCode}</strong> and tap <strong className="text-amber-400">Active</strong></span>
+                </div>
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center shrink-0">3</span>
+                  <span>This pairing screen will automatically hide and stream full-screen!</span>
+                </div>
+              </div>
+
+              {/* Background Audio / Now Playing Indicator */}
+              <div className="flex items-center gap-2.5 text-xs text-zinc-400 font-mono">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Now playing in background: <strong className="text-zinc-200">{activeMediaItem.title}</strong></span>
+              </div>
+            </div>
+          </main>
+
+          {/* Bottom Mask & Footer */}
+          <footer className="relative z-20 w-full px-6 sm:px-12 py-4 bg-black border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-500 font-mono">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>TV Room #{roomCode} • Realtime sync active</span>
+            </div>
+
+            <div className="flex items-center gap-4">
               <a
                 href={remotePageUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-amber-400/90 hover:text-amber-300 font-medium hover:underline transition-colors"
+                className="inline-flex items-center gap-1.5 text-amber-400/90 hover:text-amber-300 hover:underline"
               >
-                <span>Or open Remote page in new window</span>
-                <ExternalLink className="w-3 h-3" />
+                <span>Open remote in new window</span>
+                <ExternalLink className="w-3.5 h-3.5" />
               </a>
+              <span className="text-zinc-700">•</span>
+              <button
+                type="button"
+                onClick={() => setIsQROverlayOpen(false)}
+                className="text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+              >
+                Watch directly without remote
+              </button>
             </div>
-          </div>
+          </footer>
         </div>
       )}
-
-      {/* 4. WHEN CONNECTED BUT NO MOVIE SELECTED YET: STANDBY HERO */}
-      {isConnected && !playingItem && (
-        <div className="relative z-20 flex-1 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
-          <div className="p-4 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-4 animate-bounce">
-            <Film className="w-8 h-8" />
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
-            TV Screen Ready • Room #{roomCode}
-          </h2>
-          <p className="text-zinc-400 text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
-            Your phone remote is connected! Browse the movie collection, TV shows, or anime chronology on your mobile device and tap any poster to play.
-          </p>
-        </div>
-      )}
-
-      {/* 5. BOTTOM STATUS BAR */}
-      <footer className="relative z-30 flex items-center justify-between px-4 py-2.5 sm:px-8 sm:py-3 bg-gradient-to-t from-black/90 via-black/40 to-transparent text-[11px] text-zinc-400">
-        <div className="flex items-center gap-2 font-mono">
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          <span>Realtime Sync Active</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="font-mono">Volume: {volume}%</span>
-          {isConnected && (
-            <button
-              type="button"
-              onClick={() => {
-                soundFx.playClick('switch');
-                closeRoom(roomCode);
-                setRoomStatus('waiting');
-                setPlayingItem(null);
-              }}
-              className="text-red-400 hover:text-red-300 flex items-center gap-1 cursor-pointer"
-            >
-              <Unplug className="w-3 h-3" />
-              <span>Reset TV</span>
-            </button>
-          )}
-        </div>
-      </footer>
     </div>
   );
 };

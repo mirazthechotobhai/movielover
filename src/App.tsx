@@ -33,7 +33,7 @@ import { ConnectedRemotePanel } from './components/ConnectedRemotePanel';
 import { QRScannerModal } from './components/QRScannerModal';
 import { LiveDisplayScreen } from './components/LiveDisplayScreen';
 import { soundFx } from './utils/sound';
-import { syncManager } from './utils/syncChannel';
+import { syncManager, SyncMessage } from './utils/syncChannel';
 import { 
   connectToRoom, 
   updateRoom, 
@@ -44,7 +44,7 @@ import {
 } from './services/remotePairing';
 
 export default function App() {
-  // Check if opened in dedicated Live Display mode (/tv, ?view=display, ?view=screen, ?view=player)
+  // Check if opened in dedicated Live Display mode (/tv, ?view=tv, ?view=display, ?view=screen, ?view=player, #/tv, etc.)
   const isDisplayView = typeof window !== 'undefined' && (
     window.location.pathname.toLowerCase() === '/tv' ||
     window.location.pathname.toLowerCase() === '/tv/' ||
@@ -54,19 +54,32 @@ export default function App() {
     new URLSearchParams(window.location.search).get('view') === 'display' ||
     new URLSearchParams(window.location.search).get('view') === 'screen' ||
     new URLSearchParams(window.location.search).get('view') === 'player' ||
-    window.location.pathname.endsWith('/player')
+    window.location.pathname.endsWith('/player') ||
+    window.location.hash.toLowerCase().includes('tv') ||
+    window.location.hash.toLowerCase().includes('display') ||
+    window.location.hash.toLowerCase().includes('screen')
   );
 
-  // Normalize TV screen URL to clean /tv without messy query parameters
-  useEffect(() => {
-    if (isDisplayView && window.location.pathname !== '/tv') {
-      try {
-        window.history.replaceState({}, '', '/tv');
-      } catch {
-        // Ignore in restricted environments
-      }
-    }
-  }, [isDisplayView]);
+  // Dynamic TV screen URL that opens fresh TV Display view
+  const tvDisplayUrl = typeof window !== 'undefined'
+    ? (() => {
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.set('view', 'tv');
+          u.searchParams.delete('room');
+          u.searchParams.delete('code');
+          const currentMedia = playingMedia || (mediaItems.length > 0 ? mediaItems[selectedIndex] : null);
+          if (currentMedia) {
+            u.searchParams.set('mediaId', String(currentMedia.id));
+            u.searchParams.set('category', currentMedia.category);
+          }
+          u.hash = '';
+          return u.toString();
+        } catch {
+          return '?view=tv';
+        }
+      })()
+    : '?view=tv';
 
   const [activeCategory, setActiveCategory] = useState<CategoryType>('movies');
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,7 +97,7 @@ export default function App() {
   const [lastRemoteAction, setLastRemoteAction] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
-  // 4-digit Room Code pairing state
+  // 4-digit Room Code pairing state (empty by default until connected)
   const [pairingCode, setPairingCode] = useState<string>(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -92,7 +105,7 @@ export default function App() {
       if (fromUrl && fromUrl.trim().length === 4) {
         return fromUrl.trim();
       }
-      return localStorage.getItem('cinematic_remote_room_code') || '';
+      return '';
     } catch {
       return '';
     }
@@ -102,7 +115,12 @@ export default function App() {
   const [remoteVolume, setRemoteVolume] = useState<number>(100);
   const [mainPageCodeInput, setMainPageCodeInput] = useState<string>(() => {
     try {
-      return localStorage.getItem('cinematic_remote_room_code') || '';
+      const urlParams = new URLSearchParams(window.location.search);
+      const fromUrl = urlParams.get('room') || urlParams.get('code');
+      if (fromUrl && fromUrl.trim().length === 4) {
+        return fromUrl.trim();
+      }
+      return '';
     } catch {
       return '';
     }
@@ -148,23 +166,37 @@ export default function App() {
             msg: `Connected to TV Room #${clean}!`
           });
 
-          // Auto play default selected movie with 100% volume
-          const defaultItem = (mediaItems && mediaItems.length > 0 ? mediaItems[selectedIndex] : null) || MEDIA_COLLECTION[0];
-          if (defaultItem) {
-            handlePlayMedia(defaultItem, 1, 1);
+          // If TV already has a movie playing in the background, adopt it so it continues uninterrupted!
+          if (res.data.playingItem) {
+            setPlayingMedia(res.data.playingItem);
+            setIsRemotePlaying(true);
             setRemoteVolume(100);
             updateRoom(clean, {
               status: 'connected',
-              playingItem: defaultItem,
-              isPlaying: true,
               action: 'play',
+              isPlaying: true,
               volume: 100,
-              currentTime: 0,
-              serverIndex: 0,
-              season: 1,
-              episode: 1,
               lastCommandTimestamp: Date.now(),
             });
+          } else {
+            // Auto play default selected movie with 100% volume if TV had no item
+            const defaultItem = (mediaItems && mediaItems.length > 0 ? mediaItems[selectedIndex] : null) || MEDIA_COLLECTION[0];
+            if (defaultItem) {
+              handlePlayMedia(defaultItem, 1, 1);
+              setRemoteVolume(100);
+              updateRoom(clean, {
+                status: 'connected',
+                playingItem: defaultItem,
+                isPlaying: true,
+                action: 'play',
+                volume: 100,
+                currentTime: 0,
+                serverIndex: 0,
+                season: 1,
+                episode: 1,
+                lastCommandTimestamp: Date.now(),
+              });
+            }
           }
         }
       });
@@ -193,11 +225,15 @@ export default function App() {
 
       if (data.status === 'closed') {
         setPairingCode('');
+        setMainPageCodeInput('');
         setPlayingMedia(null);
         setIsRemotePlaying(false);
+        try {
+          localStorage.removeItem('cinematic_remote_room_code');
+        } catch (_) {}
         setMainPageConnectFeedback({
           success: false,
-          msg: 'TV Room session was closed by the player.'
+          msg: 'TV Screen was closed. Remote disconnected.'
         });
         return;
       }
@@ -225,6 +261,41 @@ export default function App() {
       unsubscribe();
     };
   }, [pairingCode]);
+
+  // Local BroadcastChannel listener for instant disconnect when TV tab closes
+  useEffect(() => {
+    const unsub = syncManager.subscribe((msg: SyncMessage) => {
+      if (msg.type === 'DISCONNECT') {
+        setPairingCode('');
+        setMainPageCodeInput('');
+        setPlayingMedia(null);
+        setIsRemotePlaying(false);
+        try {
+          localStorage.removeItem('cinematic_remote_room_code');
+        } catch (_) {}
+        setMainPageConnectFeedback({
+          success: false,
+          msg: 'TV Screen closed. Remote disconnected.'
+        });
+      } else if (msg.type === 'ROOM_UPDATE') {
+        const updateData = (msg as any).data;
+        if (updateData?.status === 'closed') {
+          setPairingCode('');
+          setMainPageCodeInput('');
+          setPlayingMedia(null);
+          setIsRemotePlaying(false);
+          try {
+            localStorage.removeItem('cinematic_remote_room_code');
+          } catch (_) {}
+          setMainPageConnectFeedback({
+            success: false,
+            msg: 'TV Screen closed. Remote disconnected.'
+          });
+        }
+      }
+    });
+    return unsub;
+  }, []);
 
   // Centralized robust Play Trigger for TV and remote
   const handlePlayMedia = useCallback((item: MediaItem, season = 1, episode = 1) => {
@@ -301,23 +372,37 @@ export default function App() {
         });
         setMainPageCodeInput('');
 
-        // Auto-play default selected movie on TV with 100% volume
-        const defaultItem = (mediaItems && mediaItems.length > 0 ? mediaItems[selectedIndex] : null) || MEDIA_COLLECTION[0];
-        if (defaultItem) {
-          handlePlayMedia(defaultItem, 1, 1);
+        // If TV screen already has a movie playing in the background, adopt it so it continues uninterrupted!
+        if (res.data.playingItem) {
+          setPlayingMedia(res.data.playingItem);
+          setIsRemotePlaying(true);
           setRemoteVolume(100);
           updateRoom(res.data.roomCode, {
             status: 'connected',
-            playingItem: defaultItem,
-            isPlaying: true,
             action: 'play',
+            isPlaying: true,
             volume: 100,
-            currentTime: 0,
-            serverIndex: playerServerIndex,
-            season: 1,
-            episode: 1,
             lastCommandTimestamp: Date.now(),
           });
+        } else {
+          // If TV had no item playing, auto-play selected or focused movie with full sound
+          const targetItem = playingMedia || (mediaItems && mediaItems.length > 0 ? mediaItems[selectedIndex] : null) || MEDIA_COLLECTION[0];
+          if (targetItem) {
+            handlePlayMedia(targetItem, playerSeason, playerEpisode);
+            setRemoteVolume(100);
+            updateRoom(res.data.roomCode, {
+              status: 'connected',
+              playingItem: targetItem,
+              isPlaying: true,
+              action: 'play',
+              volume: 100,
+              currentTime: 0,
+              serverIndex: playerServerIndex,
+              season: playerSeason,
+              episode: playerEpisode,
+              lastCommandTimestamp: Date.now(),
+            });
+          }
         }
       } else {
         soundFx.playClick('switch');
@@ -724,11 +809,18 @@ export default function App() {
             {/* Open TV Display View in New Tab */}
             <a
               id="header-tv-player-btn"
-              href="/tv"
+              href={tvDisplayUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => {
+                soundFx.playClick('ok');
+                const target = playingMediaRef.current || (mediaItems.length > 0 ? mediaItems[selectedIndex] : null);
+                if (target) {
+                  handlePlayMedia(target, playerSeason, playerEpisode);
+                }
+              }}
               className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
-              title="Open TV Screen (/tv) in a new tab"
+              title="Open TV Screen in a new tab"
             >
               <Tv2 className="w-4 h-4 text-amber-400" />
               <span className="hidden md:inline">TV Screen</span>
