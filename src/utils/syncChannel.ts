@@ -1,120 +1,88 @@
-import { CategoryType, MediaItem } from '../types';
+import { RemoteMessage } from '../types';
 
-export interface DisplaySyncState {
-  currentItem: MediaItem | null;
-  playingItem: MediaItem | null;
-  serverIndex?: number;
-  season?: number;
-  episode?: number;
-  activeCategory: CategoryType;
-  searchQuery: string;
-  selectedIndex: number;
-  timestamp: number;
-}
+const CHANNEL_NAME = 'embedmaster_sync_channel';
+const STORAGE_KEY = 'embedmaster_sync_message';
 
-export type SyncMessage =
-  | { type: 'STATE_UPDATE'; state: DisplaySyncState }
-  | { type: 'SELECT_ITEM'; item: MediaItem; category?: CategoryType; index?: number }
-  | { type: 'PLAY'; item: MediaItem; serverIndex?: number; season?: number; episode?: number }
-  | { type: 'PLAYER_CONFIG'; serverIndex: number; season: number; episode: number }
-  | { type: 'PLAYER_ACTION'; action: 'play' | 'preview' | 'next'; timestamp: number }
-  | { type: 'PLAYER_COMMAND'; command: 'play' | 'pause' | 'seek' | 'rewind' | 'forward' | 'mute' | 'unmute' | 'volume' | 'fullscreen' | 'prev_ep' | 'next_ep' | 'stop'; value?: any; extra?: any; timestamp: number }
-  | { type: 'PLAYER_STATUS'; isPlaying: boolean; currentTime: number; duration: number; volume: number; isMuted: boolean; activeSeason?: number; activeEpisode?: number; timestamp: number }
-  | { type: 'CLOSE_PLAYER' }
-  | { type: 'DISCONNECT'; timestamp?: number }
-  | { type: 'CATEGORY_CHANGE'; category: CategoryType }
-  | { type: 'SEARCH'; query: string }
-  | { type: 'ROOM_UPDATE'; roomCode?: string; data?: any }
-  | { type: 'REQUEST_STATE' };
+type MessageHandler = (message: RemoteMessage) => void;
 
-const CHANNEL_NAME = 'cinema_live_display_sync_channel';
-const STORAGE_KEY = 'cinema_display_sync_state';
-
-class CinemaSyncManager {
-  private channel: BroadcastChannel | null = null;
-  private listeners: ((msg: SyncMessage) => void)[] = [];
+class SyncChannel {
+  private broadcastChannel: BroadcastChannel | null = null;
+  private listeners: Set<MessageHandler> = new Set();
 
   constructor() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
-        this.channel = new BroadcastChannel(CHANNEL_NAME);
-        this.channel.onmessage = (event) => {
-          if (event.data) {
-            this.notifyListeners(event.data);
+        this.broadcastChannel = new BroadcastChannel(CHANNEL_NAME);
+        this.broadcastChannel.onmessage = (event) => {
+          if (event.data && typeof event.data === 'object') {
+            this.notifyListeners(event.data as RemoteMessage);
           }
         };
-      } catch (err) {
-        console.warn('[CinemaSyncManager] BroadcastChannel not supported:', err);
+      } catch (e) {
+        console.warn('BroadcastChannel error, falling back to localStorage', e);
       }
+    }
+
+    // Cross-tab fallback with window.storage
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', (event) => {
+        if (event.key === STORAGE_KEY && event.newValue) {
+          try {
+            const parsed = JSON.parse(event.newValue) as RemoteMessage;
+            this.notifyListeners(parsed);
+          } catch (err) {
+            // Ignore parse error
+          }
+        }
+      });
     }
   }
 
-  public broadcast(msg: SyncMessage) {
-    // 1. Notify listeners in the CURRENT window/tab
-    this.notifyListeners(msg);
-
-    // 2. Broadcast to other windows/tabs in the same origin
-    if (this.channel) {
-      try {
-        this.channel.postMessage(msg);
-      } catch (err) {
-        console.warn('[CinemaSyncManager] Broadcast post error:', err);
-      }
-    }
-  }
-
-  public subscribe(callback: (msg: SyncMessage) => void): () => void {
-    this.listeners.push(callback);
+  public subscribe(handler: MessageHandler): () => void {
+    this.listeners.add(handler);
     return () => {
-      this.listeners = this.listeners.filter((cb) => cb !== callback);
+      this.listeners.delete(handler);
     };
   }
 
-  private notifyListeners(msg: SyncMessage) {
-    for (const cb of this.listeners) {
+  private notifyListeners(message: RemoteMessage) {
+    this.listeners.forEach((listener) => {
       try {
-        cb(msg);
-      } catch (err) {
-        console.error('[CinemaSyncManager] Listener error:', err);
+        listener(message);
+      } catch (e) {
+        console.error('Error in sync listener', e);
       }
-    }
+    });
   }
 
-  public saveState(state: Partial<DisplaySyncState>) {
-    if (typeof window === 'undefined') return;
-    try {
-      const current = this.getState() || {
-        currentItem: null,
-        playingItem: null,
-        activeCategory: 'movies',
-        searchQuery: '',
-        selectedIndex: 0,
-        timestamp: Date.now(),
-      };
-      const updated: DisplaySyncState = {
-        ...current,
-        ...state,
-        timestamp: Date.now(),
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      this.broadcast({ type: 'STATE_UPDATE', state: updated });
-    } catch (err) {
-      console.warn('[CinemaSyncManager] saveState error:', err);
-    }
-  }
+  public send(message: Omit<RemoteMessage, 'id' | 'timestamp'>) {
+    const fullMessage: RemoteMessage = {
+      ...message,
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: Date.now(),
+    };
 
-  public getState(): DisplaySyncState | null {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        return JSON.parse(raw);
+    // 1. BroadcastChannel
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage(fullMessage);
+      } catch (e) {
+        console.warn('Broadcast postMessage failed', e);
       }
-    } catch (err) {
-      console.warn('[CinemaSyncManager] getState error:', err);
     }
-    return null;
+
+    // 2. localStorage fallback for cross-tab sync
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(fullMessage));
+      } catch (e) {
+        // Storage might be unavailable or full
+      }
+    }
+
+    // Also notify local listeners in current window
+    this.notifyListeners(fullMessage);
   }
 }
 
-export const syncManager = new CinemaSyncManager();
+export const syncManager = new SyncChannel();

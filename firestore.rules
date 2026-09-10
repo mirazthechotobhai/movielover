@@ -1,33 +1,100 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is authenticated
-    function isAuthenticated() {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper function to check if user is accessing their own record
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.userId == request.auth.uid
+        && data.email is string && data.email.size() <= 256
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    function isValidPlayerSettings(data) {
+      return data.userId is string && data.userId == request.auth.uid
+        && data.skin is string && data.skin.size() <= 64
+        && data.autoplay is bool
+        && data.subtitles is bool
+        && (!('welcomePage' in data) || data.welcomePage is bool)
+        && (!('defaultVolume' in data) || (data.defaultVolume is number && data.defaultVolume >= 0 && data.defaultVolume <= 100))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidCustomMedia(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId == request.auth.uid
+        && data.title is string && data.title.size() <= 256
+        && data.embedUrl is string && data.embedUrl.size() <= 2048
+        && data.type is string && data.type.size() <= 64
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    function isValidRemoteSession(data) {
+      return data.sessionId is string && data.sessionId.size() <= 128
+        && data.hostUserId is string && data.hostUserId.size() <= 128
+        && data.isPlaying is bool
+        && data.volume is number && data.volume >= 0 && data.volume <= 100
+        && data.isMuted is bool
+        && (!('currentTime' in data) || data.currentTime is number)
+        && (!('duration' in data) || data.duration is number)
+        && (!('mediaTitle' in data) || (data.mediaTitle is string && data.mediaTitle.size() <= 256))
+        && (!('mediaUrl' in data) || (data.mediaUrl is string && data.mediaUrl.size() <= 2048))
+        && (!('lastCommand' in data) || (data.lastCommand is string && data.lastCommand.size() <= 64))
+        && (!('lastCommandValue' in data) || data.lastCommandValue is number)
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // User Profile
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if false; // PII protection
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUserProfile(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUserProfile(incoming());
+      allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+
+      // Subcollection: Settings
+      match /settings/{settingId} {
+        allow get, list: if isSignedIn() && request.auth.uid == userId;
+        allow create, update: if isSignedIn() && request.auth.uid == userId && isValidId(settingId) && isValidPlayerSettings(incoming());
+        allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(settingId);
+      }
+
+      // Subcollection: Custom Media
+      match /customMedia/{mediaId} {
+        allow get, list: if isSignedIn() && request.auth.uid == userId;
+        allow create, update: if isSignedIn() && request.auth.uid == userId && isValidId(mediaId) && isValidCustomMedia(incoming());
+        allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(mediaId);
+      }
     }
 
-    match /remote_sessions/{sessionCode} {
-      // Anyone with the pairing code can read and update the session for live playback sync
-      allow read, write: if true;
-    }
-
-    match /rooms/{roomCode} {
-      // Direct 4-digit room node for TV player & remote control
-      allow read, write: if true;
-    }
-
-    match /test/{docId} {
-      // Allow reading test document for health checks
-      allow read: if true;
+    // Cloud Remote Sessions (Synchronized Transport Bus across devices)
+    match /remoteSessions/{sessionId} {
+      allow get: if isSignedIn() && isValidId(sessionId);
+      allow list: if isSignedIn() && resource.data.hostUserId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(sessionId) && isValidRemoteSession(incoming()) && incoming().hostUserId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(sessionId) && isValidRemoteSession(incoming());
+      allow delete: if isSignedIn() && isValidId(sessionId) && resource.data.hostUserId == request.auth.uid;
     }
   }
 }

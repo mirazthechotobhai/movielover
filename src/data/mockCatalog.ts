@@ -1,0 +1,130 @@
+import { MediaItem } from '../types';
+
+export const POPULAR_CATALOG: MediaItem[] = [
+  {
+    id: 'tt31193180',
+    title: 'Featured Cinema Release',
+    type: 'movie',
+    year: '2024',
+    rating: '8.4',
+    genre: ['Action', 'Thriller', 'Drama'],
+    poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1200&auto=format&fit=crop&q=80',
+    overview: 'Featured demonstration film provided in EmbedMaster official specifications (IMDb tt31193180).'
+  },
+  {
+    id: 'tt15239678',
+    title: 'Dune: Part Two',
+    type: 'movie',
+    year: '2024',
+    rating: '8.6',
+    genre: ['Action', 'Adventure', 'Sci-Fi'],
+    poster: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&auto=format&fit=crop&q=80',
+    overview: 'Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.'
+  },
+  {
+    id: 'tt6263850',
+    title: 'Deadpool & Wolverine',
+    type: 'movie',
+    year: '2024',
+    rating: '7.8',
+    genre: ['Action', 'Comedy', 'Sci-Fi'],
+    poster: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1200&auto=format&fit=crop&q=80',
+    overview: 'Wolverine is recovering from his injuries when he crosses paths with the loudmouth, Deadpool.'
+  },
+  {
+    id: 'tt15398776',
+    title: 'Oppenheimer',
+    type: 'movie',
+    year: '2023',
+    rating: '8.9',
+    genre: ['Biography', 'Drama', 'History'],
+    poster: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&auto=format&fit=crop&q=80',
+    overview: 'The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb.'
+  },
+  {
+    id: 'tt0816692',
+    title: 'Interstellar',
+    type: 'movie',
+    year: '2014',
+    rating: '8.7',
+    genre: ['Adventure', 'Drama', 'Sci-Fi'],
+    poster: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=1200&auto=format&fit=crop&q=80',
+    overview: 'When Earth becomes uninhabitable in the future, a farmer and ex-NASA pilot, Joseph Cooper, is tasked to pilot a spacecraft.'
+  },
+  {
+    id: 'tt1375666',
+    title: 'Inception',
+    type: 'movie',
+    year: '2010',
+    rating: '8.8',
+    genre: ['Action', 'Adventure', 'Sci-Fi'],
+    poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1200&auto=format&fit=crop&q=80',
+    overview: 'A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea.'
+  },
+  {
+    id: 'tt4574334',
+    title: 'Stranger Things',
+    type: 'tv',
+    year: '2016-2025',
+    rating: '8.7',
+    genre: ['Drama', 'Fantasy', 'Horror'],
+    poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1200&auto=format&fit=crop&q=80',
+    overview: 'When a young boy vanishes, a small town uncovers a mystery involving secret experiments, terrifying supernatural forces and one strange little girl.',
+    season: 1,
+    episode: 1,
+    totalSeasons: 4,
+    episodesPerSeason: 8
+  },
+  {
+    id: 'tt0903747',
+    title: 'Breaking Bad',
+    type: 'tv',
+    year: '2008-2013',
+    rating: '9.5',
+    genre: ['Crime', 'Drama', 'Thriller'],
+    poster: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1200&auto=format&fit=crop&q=80',
+    overview: 'A chemistry teacher diagnosed with inoperable lung cancer turns to manufacturing and selling methamphetamine with a former student.',
+    season: 1,
+    episode: 1,
+    totalSeasons: 5,
+    episodesPerSeason: 7
+  },
+  {
+    id: 'tt11198330',
+    title: 'House of the Dragon',
+    type: 'tv',
+    year: '2022-',
+    rating: '8.4',
+    genre: ['Action', 'Adventure', 'Drama'],
+    poster: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=1200&auto=format&fit=crop&q=80',
+    overview: 'An internal succession war within House Targaryen at the height of its power, 172 years before the birth of Daenerys Targaryen.',
+    season: 1,
+    episode: 1,
+    totalSeasons: 2,
+    episodesPerSeason: 8
+  },
+  {
+    id: 'tt3581920',
+    title: 'The Last of Us',
+    type: 'tv',
+    year: '2023-',
+    rating: '8.8',
+    genre: ['Action', 'Adventure', 'Drama'],
+    poster: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600&auto=format&fit=crop&q=80',
+    backdrop: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=1200&auto=format&fit=crop&q=80',
+    overview: 'After a global pandemic destroys civilization, a hardened survivor takes charge of a 14-year-old girl who may be humanity’s last hope.',
+    season: 1,
+    episode: 1,
+    totalSeasons: 1,
+    episodesPerSeason: 9
+  }
+];

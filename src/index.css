@@ -1,61 +1,128 @@
 @import "tailwindcss";
 
-html {
-  scroll-behavior: smooth;
+:root {
+  --bg: #050505;
+  --panel-bg: #111111;
+  --panel-bg-alt: #0a0a0a;
+  --accent: #00F0FF;
+  --accent-glow: rgba(0, 240, 255, 0.4);
+  --text-dim: #888888;
+  --border-dark: #222222;
+  --border-mid: #333333;
+  --border-light: #444444;
+  --status-green: #00FF66;
+  --status-red: #FF2233;
+  --status-amber: #FFB300;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-/* Custom smooth dark scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+body {
+  background-color: var(--bg);
+  color: #e5e5e5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-::-webkit-scrollbar-track {
-  background: #090a0f;
+/* Hardware Specialist Utility Classes */
+.hardware-mono {
+  font-family: var(--font-mono);
 }
 
-::-webkit-scrollbar-thumb {
-  background: #27272a;
+.hardware-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-mid);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.hardware-subpanel {
+  background: var(--panel-bg-alt);
+  border: 1px solid var(--border-mid);
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #f59e0b;
+.hardware-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
-@keyframes scanLaser {
-  0% {
-    top: 5%;
-    opacity: 0.8;
-  }
-  50% {
-    top: 90%;
-    opacity: 1;
-  }
-  100% {
-    top: 5%;
-    opacity: 0.8;
-  }
+.hardware-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0.5px;
 }
 
-.animate-scanLaser {
-  animation: scanLaser 2.2s ease-in-out infinite;
+.hardware-btn {
+  background: #1a1a1a;
+  border: 1px solid #333333;
+  color: #ffffff;
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.hardware-btn:hover {
+  background: #242424;
+  border-color: #555555;
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.hardware-btn:active, .hardware-btn.active {
+  background: #00F0FF !important;
+  color: #000000 !important;
+  border-color: #00F0FF !important;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
 
-@keyframes scaleUp {
-  from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
+.hardware-btn-accent {
+  background: #152528;
+  border: 1px solid #00F0FF;
+  color: #00F0FF;
 }
 
-.animate-scaleUp {
-  animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.hardware-btn-accent:hover {
+  background: #00F0FF;
+  color: #000000;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+}
+
+/* LED Indicator lights */
+.led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #330000;
+}
+
+.led.led-red {
+  background: #FF2233;
+  box-shadow: 0 0 6px #FF2233;
+}
+
+.led.led-green {
+  background: #00FF66;
+  box-shadow: 0 0 6px #00FF66;
+}
+
+.led.led-cyan {
+  background: #00F0FF;
+  box-shadow: 0 0 6px #00F0FF;
+}
+
+.led.led-amber {
+  background: #FFB300;
+  box-shadow: 0 0 6px #FFB300;
+}
+
+/* Precision range slider */
+input[type="range"].hardware-slider {
+  accent-color: #00F0FF;
+}
+
+input[type="range"].hardware-slider::-webkit-slider-thumb {
+  box-shadow: 0 0 8px #00F0FF;
 }
