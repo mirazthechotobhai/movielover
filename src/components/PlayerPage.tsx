@@ -153,6 +153,13 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({
           playerRef.current?.setVolume(data.volume * 100);
         } else if (data.action === 'loadMedia' && data.mediaId) {
           handleLoadMedia(data);
+        } else if (data.action === 'fullscreen') {
+          playerRef.current?.requestFullscreen();
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          } else {
+            document.exitFullscreen().catch(() => {});
+          }
         }
       }
     });
@@ -169,6 +176,13 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({
           playerRef.current?.play();
         } else if (msg.type === 'volume' && typeof msg.value === 'number') {
           playerRef.current?.setVolume(msg.value);
+        } else if (msg.type === 'fullscreen') {
+          playerRef.current?.requestFullscreen();
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          } else {
+            document.exitFullscreen().catch(() => {});
+          }
         } else if (msg.type === 'loadMedia' && msg.media) {
           const resolvedId = await resolveMediaPlaybackId(msg.media.id, msg.media.type);
           setCurrentMedia({

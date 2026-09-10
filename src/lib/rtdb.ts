@@ -45,7 +45,7 @@ export interface RoomState {
   isPlaying: boolean;
   currentTime: number;
   duration?: number;
-  action: 'none' | 'play' | 'pause' | 'close' | 'seek' | 'volume' | 'loadMedia';
+  action: 'none' | 'play' | 'pause' | 'close' | 'seek' | 'volume' | 'loadMedia' | 'fullscreen';
   actionTimestamp?: number;
   volume: number; // 0 to 1
   status: 'waiting' | 'connected' | 'closed';
@@ -216,6 +216,16 @@ export function listenToRoom(
           mediaType: msg.media.type,
           season: msg.media.season,
           episode: msg.media.episode,
+        });
+      } else if (msg.type === 'fullscreen') {
+        callback({
+          roomCode,
+          isPlaying: true,
+          currentTime: 0,
+          action: 'fullscreen',
+          actionTimestamp: Date.now(),
+          volume: 1,
+          status: 'connected',
         });
       }
     }
@@ -422,6 +432,8 @@ export async function sendRemoteCommand(
     syncManager.send({ source: 'embedmaster_remote', type: 'play' });
   } else if (action === 'pause') {
     syncManager.send({ source: 'embedmaster_remote', type: 'pause' });
+  } else if (action === 'fullscreen') {
+    syncManager.send({ source: 'embedmaster_remote', type: 'fullscreen' });
   } else if (action === 'seek' && typeof extra?.currentTime === 'number') {
     syncManager.send({ source: 'embedmaster_remote', type: 'seek', value: extra.currentTime });
   } else if (action === 'volume' && typeof extra?.volume === 'number') {

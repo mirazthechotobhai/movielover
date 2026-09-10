@@ -46,6 +46,7 @@ import {
   Unlink,
   AlertCircle,
   Clock,
+  Maximize2,
 } from 'lucide-react';
 
 interface RemoteControlPageProps {
@@ -342,6 +343,13 @@ export const RemoteControlPage: React.FC<RemoteControlPageProps> = ({
     const displayMins = Math.floor(seconds / 60);
     const displaySecs = (seconds % 60).toString().padStart(2, '0');
     setJumpFeedback(`Playing from ${rawVal} min (${displayMins}:${displaySecs})`);
+    setTimeout(() => setJumpFeedback(null), 3500);
+  };
+
+  const handleToggleFullscreen = async () => {
+    if (!activeRoomCode) return;
+    await sendRemoteCommand(activeRoomCode, 'fullscreen');
+    setJumpFeedback('Full Screen toggled on TV 📺');
     setTimeout(() => setJumpFeedback(null), 3500);
   };
 
@@ -924,11 +932,20 @@ export const RemoteControlPage: React.FC<RemoteControlPageProps> = ({
                   <button
                     onClick={() => handleJumpToMinute()}
                     disabled={!minuteInput || isNaN(parseFloat(minuteInput)) || parseFloat(minuteInput) < 0}
-                    className="h-10 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/25 active:scale-95 transition"
+                    className="h-10 px-3.5 sm:px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/25 active:scale-95 transition shrink-0"
                     title="Jump to minute and play on TV"
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>Play</span>
+                  </button>
+
+                  <button
+                    onClick={handleToggleFullscreen}
+                    className="w-10 h-10 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-700/80 hover:border-cyan-500/50 text-white flex items-center justify-center shadow-md active:scale-95 transition shrink-0"
+                    title="Toggle Full Screen on TV"
+                    aria-label="Toggle Full Screen on TV"
+                  >
+                    <Maximize2 className="w-4 h-4 text-cyan-400" />
                   </button>
                 </div>
 
