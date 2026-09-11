@@ -1,116 +1,78 @@
 export type MediaType = 'movie' | 'tv' | 'anime';
 
-export interface TMDBMediaItem {
-  id: number;
-  title?: string;
-  name?: string;
-  original_title?: string;
-  original_name?: string;
-  overview: string;
-  poster_path: string | null;
-  backdrop_path: string | null;
-  vote_average: number;
-  vote_count: number;
-  release_date?: string;
-  first_air_date?: string;
-  media_type?: 'movie' | 'tv';
-  genre_ids?: number[];
-  genres?: { id: number; name: string }[];
-  runtime?: number;
-  number_of_seasons?: number;
-  number_of_episodes?: number;
-  seasons?: TMDBSeasonSummary[];
-}
+export type ContentCategory = 'movie' | 'tv' | 'anime';
 
-export interface TMDBSeasonSummary {
-  id: number;
-  season_number: number;
-  name: string;
-  overview: string;
-  episode_count: number;
-  poster_path: string | null;
-  air_date?: string;
-}
+export type PlayerSkin = 'onyx' | 'aurora';
+export type SwitchToggle = 'on' | 'off';
+export type DisplayMode = 'fullscreen-view' | 'responsive-16-9' | 'contained';
 
-export interface TMDBEpisode {
-  id: number;
-  episode_number: number;
-  season_number: number;
-  name: string;
-  overview: string;
-  still_path: string | null;
-  air_date: string;
-  vote_average: number;
-  runtime?: number;
-}
-
-export interface VideoStreamOption {
-  quality: string;
+export interface CustomSubtitle {
   url: string;
-  type: string;
+  label: string;
 }
 
-export interface MediaPlayPayload {
-  mediaId: number;
-  mediaType: 'movie' | 'tv' | 'anime';
+export interface MediaItem {
+  id: string; // IMDb (tt...) or TMDB ID
+  tmdbId?: number;
+  imdbId?: string;
   title: string;
-  overview: string;
-  posterUrl: string;
-  backdropUrl: string;
-  videoUrl: string;
-  releaseYear?: string;
-  rating?: number;
-  seasonNumber?: number;
-  episodeNumber?: number;
-  episodeTitle?: string;
-}
-
-export type RemoteCommandType =
-  | 'PLAY_MEDIA'
-  | 'PLAY_EPISODE'
-  | 'PAUSE'
-  | 'PLAY'
-  | 'SEEK_FORWARD'
-  | 'SEEK_BACKWARD'
-  | 'TIME_JUMP'
-  | 'SET_VOLUME'
-  | 'MUTE'
-  | 'UNMUTE'
-  | 'STOP';
-
-export interface RemoteCommand {
-  commandId: string;
-  type: RemoteCommandType;
-  payload?: any;
-  timestamp: number;
-  senderId?: string;
-}
-
-export interface PlaybackState {
-  playing: boolean;
-  currentTime: number;
-  duration: number;
-  volume: number;
-  isMuted: boolean;
-  title: string;
+  type: MediaType;
+  category?: ContentCategory;
+  year?: string;
+  duration?: string;
+  genre?: string;
+  description?: string;
+  season?: number;
+  episode?: number;
+  totalSeasons?: number;
+  episodesPerSeason?: number;
+  seasonsInfo?: { seasonNumber: number; episodeCount: number; name: string }[];
+  backdropUrl?: string;
   posterUrl?: string;
-  mediaType?: string;
-  seasonNumber?: number;
-  episodeNumber?: number;
-  lastUpdated?: number;
+  rating?: string;
+  trendingRank?: number;
+  isTrending?: boolean;
 }
 
-export interface TvSessionData {
+export interface PlayerConfig {
+  skin: PlayerSkin;
+  welcomePage: SwitchToggle;
+  autoplay: SwitchToggle;
+  subtitles: CustomSubtitle[];
+}
+
+export interface PlayerEventLog {
+  id: string;
+  event: string;
+  info?: any;
+  timestamp: string;
+  raw: string;
+}
+
+export interface PlayerCommand {
+  command: 'play' | 'pause' | 'seek' | 'volume' | 'mute' | 'unmute' | 'fullscreen' | 'reload';
+  value?: any;
+  timestamp: number;
+}
+
+export interface TvRoomData {
   roomCode: string;
-  tvId: string;
-  status: 'waiting' | 'connected' | 'expired';
-  remoteId: string | null;
-  createdAt: number;
-  lastHeartbeat: number;
-  currentMedia?: MediaPlayPayload | null;
-  playbackState?: PlaybackState;
-  command?: RemoteCommand | null;
+  status: 'waiting' | 'connected' | 'terminated';
+  createdAt?: any;
+  lastActive?: any;
+  controllerId?: string | null;
+  currentMedia?: MediaItem | null;
+  playbackCommand?: {
+    action: 'play' | 'pause' | 'seek' | 'time_jump' | 'volume' | 'mute' | 'unmute' | 'fullscreen' | 'play_media' | 'reload';
+    value?: any;
+    timestamp: number;
+  } | null;
+  tvState?: {
+    isPlaying: boolean;
+    volume: number;
+    currentTime: number;
+    duration: number;
+    title: string;
+    mediaType: string;
+  } | null;
 }
-
-export type ActiveCategory = 'movies' | 'tv' | 'anime';
-export type FilterSortOption = 'popular' | 'trending' | 'top_rated' | 'now_playing';

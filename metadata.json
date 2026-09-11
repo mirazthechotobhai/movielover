@@ -1,6 +1,6 @@
 {
-  "name": "OnlineTV",
-  "description": "Cross-platform streaming web app for Smart TVs, mobile, and desktop with TMDB discovery, custom HTML5 player, and Firebase real-time remote control pairing.",
+  "name": "EmbedMaster Cinema Player",
+  "description": "A streaming application featuring a custom video player with playback controls, volume bar, and time jump input box, TMDB catalog with infinite scrolling (Movies, TV Shows, Anime), dynamic episode selector, and Firebase-powered TV remote control sync.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

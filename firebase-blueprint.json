@@ -1,98 +1,48 @@
 {
   "entities": {
-    "WatchHistoryItem": {
-      "title": "Watch History Item",
-      "description": "Represents a media item watched by the user",
+    "tv_room": {
+      "title": "TV Room",
+      "description": "Active TV streaming room session paired with remote control",
       "type": "object",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "UID of the user who watched this media",
-          "maxLength": 128
-        },
-        "mediaId": {
-          "type": "string",
-          "description": "Identifier of the media",
-          "maxLength": 64
-        },
-        "mediaType": {
-          "type": "string",
-          "description": "Type of media: movie, tv, anime",
-          "maxLength": 32
-        },
-        "title": {
-          "type": "string",
-          "description": "Title of the media",
-          "maxLength": 256
-        },
-        "posterPath": {
-          "type": "string",
-          "description": "Relative poster image path",
-          "maxLength": 256
-        },
-        "watchedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp when the media was last watched"
-        },
-        "progress": {
-          "type": "number",
-          "description": "Playback progress in seconds"
-        },
-        "duration": {
-          "type": "number",
-          "description": "Total duration in seconds"
-        }
+        "roomCode": { "type": "string" },
+        "status": { "type": "string", "enum": ["waiting", "connected", "terminated"] },
+        "createdAt": { "type": "string" },
+        "lastActive": { "type": "string" },
+        "controllerId": { "type": "string" },
+        "currentMedia": { "type": "object" },
+        "playbackCommand": { "type": "object" },
+        "tvState": { "type": "object" }
       },
-      "required": ["userId", "mediaId", "mediaType", "title", "watchedAt"]
+      "required": ["roomCode", "status"]
     },
-    "FavoriteItem": {
-      "title": "Favorite Item",
-      "description": "A bookmarked or favorite movie, show, or anime",
+    "remote_session": {
+      "title": "Remote Session",
+      "description": "D-Pad Remote pairing session",
       "type": "object",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "UID of the user who saved this item",
-          "maxLength": 128
-        },
-        "mediaId": {
-          "type": "string",
-          "description": "Identifier of the media",
-          "maxLength": 64
-        },
-        "mediaType": {
-          "type": "string",
-          "description": "Type of media",
-          "maxLength": 32
-        },
-        "title": {
-          "type": "string",
-          "description": "Title of the media",
-          "maxLength": 256
-        },
-        "posterPath": {
-          "type": "string",
-          "description": "Relative poster image path",
-          "maxLength": 256
-        },
-        "addedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp when added to favorites"
-        }
+        "code": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastActive": { "type": "string" },
+        "lastCommand": { "type": "object" },
+        "playerState": { "type": "object" },
+        "paired": { "type": "boolean" }
       },
-      "required": ["userId", "mediaId", "mediaType", "title", "addedAt"]
+      "required": ["code"]
     }
   },
   "firestore": {
-    "/watch_history/{historyId}": {
-      "schema": "WatchHistoryItem",
-      "description": "Collection of watch history entries"
+    "/tv_rooms/{roomCode}": {
+      "schema": "tv_room",
+      "description": "Real-time TV room sync sessions"
     },
-    "/favorites/{favoriteId}": {
-      "schema": "FavoriteItem",
-      "description": "Collection of saved favorites"
+    "/remote_sessions/{sessionCode}": {
+      "schema": "remote_session",
+      "description": "Real-time remote control sessions"
     }
   }
 }

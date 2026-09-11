@@ -1,1 +1,69 @@
 @import "tailwindcss";
+
+/* ==========================================================
+   SMART TV & DESKTOP CLEAN LIGHT THEME RESET
+   ========================================================== */
+
+html, body {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background-color: #f8fafc;
+}
+
+/* Video player and poster elements */
+video, img.poster, iframe {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Custom smooth scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Focus navigation for accessibility and TV remote */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+.interactive-element:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+button,
+a,
+[tabindex],
+.interactive-element {
+  transition: all 0.15s ease-in-out;
+}

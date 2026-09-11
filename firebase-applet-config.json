@@ -1,12 +1,12 @@
 {
-  "projectId": "onlinetv-2a646",
-  "appId": "1:1058040740024:web:7f49b442d850ac6c5c1c4d",
-  "apiKey": "AIzaSyD-8ll3D3m-by9-vQaKTTX-r1V2JObXilc",
-  "authDomain": "onlinetv-2a646.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-onlinetv-1d545108-32c0-482e-b3ed-e8bf8aed53d4",
-  "storageBucket": "onlinetv-2a646.firebasestorage.app",
-  "messagingSenderId": "1058040740024",
+  "projectId": "exemplary-voyage-gdtd0",
+  "appId": "1:805270535601:web:2fe665a968bd5f79535190",
+  "apiKey": "AIzaSyCiMO9gddyyxwEro0rk4UmndLMvil7cKMU",
+  "authDomain": "exemplary-voyage-gdtd0.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-embedmastercinem-99f21aa2-437f-422e-a5c8-587883a2d3a6",
+  "storageBucket": "exemplary-voyage-gdtd0.firebasestorage.app",
+  "messagingSenderId": "805270535601",
   "measurementId": "",
-  "oAuthClientId": "1058040740024-bi24j5hm90n03uc3la5pvlko3kq0giiq.apps.googleusercontent.com",
+  "oAuthClientId": "805270535601-59dvkol5ilalj0qi97dpbvi0mi24rl4j.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
