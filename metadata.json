@@ -1,6 +1,6 @@
 {
-  "name": "EmbedMaster Cinema Player",
-  "description": "A streaming application featuring a custom video player with playback controls, volume bar, and time jump input box, TMDB catalog with infinite scrolling (Movies, TV Shows, Anime), dynamic episode selector, and Firebase-powered TV remote control sync.",
+  "name": "GoToCinema TV",
+  "description": "Smart Android TV streaming cinema app for Movies, TV Shows, and Anime powered by TMDB and EmbedMaster player with seamless remote control support.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

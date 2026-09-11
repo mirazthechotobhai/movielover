@@ -1,259 +1,144 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-  User,
-} from 'firebase/auth';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  updateDoc,
-  onSnapshot,
-  serverTimestamp,
-  Unsubscribe,
-  getDocFromServer,
-} from 'firebase/firestore';
-import firebaseAppletConfig from '../../firebase-applet-config.json';
-import { RemoteCommand, RemotePlayerState } from '../utils/remoteSync';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAnalytics, isSupported } from "firebase/analytics";
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  getDocs, 
+  query, 
+  orderBy, 
+  serverTimestamp 
+} from "firebase/firestore";
+import { getAuth, signInAnonymously } from "firebase/auth";
+import { WatchlistItem } from "../types";
 
-// Use project configuration from firebase-applet-config.json
-export const firebaseConfig = {
-  apiKey: firebaseAppletConfig.apiKey,
-  authDomain: firebaseAppletConfig.authDomain,
-  projectId: firebaseAppletConfig.projectId,
-  storageBucket: firebaseAppletConfig.storageBucket,
-  messagingSenderId: firebaseAppletConfig.messagingSenderId,
-  appId: firebaseAppletConfig.appId,
-  measurementId: firebaseAppletConfig.measurementId,
+// User provided Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBS8Tnh6bo1cD6eDe0JeVOb58h4mpP0Bcs",
+  authDomain: "gotocinema-275da.firebaseapp.com",
+  projectId: "gotocinema-275da",
+  storageBucket: "gotocinema-275da.firebasestorage.app",
+  messagingSenderId: "208207695827",
+  appId: "1:208207695827:web:cd8978702a24dc55796926",
+  measurementId: "G-GG8328HQJN"
 };
 
-// Initialize Firebase App instance safely (prevent duplicate initialization)
-export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+// Initialize Firebase App
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-// Use the specific firestoreDatabaseId if configured in firebase-applet-config.json
-export const db =
-  firebaseAppletConfig.firestoreDatabaseId &&
-  firebaseAppletConfig.firestoreDatabaseId !== '(default)'
-    ? getFirestore(app, firebaseAppletConfig.firestoreDatabaseId)
-    : getFirestore(app);
-
-// Initialize Firebase Analytics safely (supported in browser environments)
-export let analytics: Analytics | null = null;
-if (typeof window !== 'undefined') {
+// Optional analytics initialization
+if (typeof window !== "undefined") {
   isSupported().then((supported) => {
     if (supported) {
-      analytics = getAnalytics(app);
-      console.log('[Firebase] Analytics initialized successfully');
+      getAnalytics(app);
     }
-  }).catch(() => {});
+  }).catch(() => {
+    // Ignore analytics unsupported error in restricted iframes
+  });
 }
 
-// Validate connection on startup (catch offline errors gracefully)
-export async function testConnection(): Promise<void> {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error: any) {
-    // Offline or custom project rules - non-blocking as local broadcast channel handles sync
-    console.warn('[Firebase] Initial connection check:', error?.message || error);
-  }
-}
-testConnection();
+const LOCAL_STORAGE_WATCHLIST_KEY = "gotocinema_tv_watchlist";
 
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
-
-/**
- * Sign in with Google / Gmail
- */
-export async function signInWithGoogle(): Promise<User> {
+// Get local watchlist
+export function getLocalWatchlist(): WatchlistItem[] {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error: any) {
-    console.error('[Firebase Auth] Error signing in with Google:', error);
-    throw error;
+    const raw = localStorage.getItem(LOCAL_STORAGE_WATCHLIST_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
   }
 }
 
-/**
- * Sign out current user
- */
-export async function logoutFirebaseUser(): Promise<void> {
+// Save local watchlist
+function setLocalWatchlist(items: WatchlistItem[]) {
   try {
-    await signOut(auth);
-  } catch (error: any) {
-    console.error('[Firebase Auth] Error signing out:', error);
-    throw error;
+    localStorage.setItem(LOCAL_STORAGE_WATCHLIST_KEY, JSON.stringify(items));
+  } catch {
+    // LocalStorage quota or restricted
   }
 }
 
-/**
- * Generate a clean 6-digit numeric pairing code
- */
-export function generatePairingCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-export interface RemoteSessionData {
-  code: string;
-  userId: string;
-  userEmail: string | null;
-  userName: string | null;
-  userPhoto: string | null;
-  createdAt: any;
-  lastActive: any;
-  lastCommand?: {
-    command: RemoteCommand;
-    value?: any;
-    timestamp: number;
-  } | null;
-  playerState?: RemotePlayerState | null;
-  paired: boolean;
-}
-
-/**
- * Register or restore a remote session in Firestore
- */
-export async function initRemoteSession(
-  user: User,
-  existingCode?: string | null
-): Promise<string> {
-  // Use existing code from localStorage if available, or generate a new 6-digit code
-  const code = existingCode || generatePairingCode();
-  const sessionRef = doc(db, 'remote_sessions', code);
-
+// Ensure anonymous authentication for the TV device
+let currentUserId: string | null = null;
+async function ensureAuthUser(): Promise<string> {
+  if (currentUserId) return currentUserId;
+  if (auth.currentUser) {
+    currentUserId = auth.currentUser.uid;
+    return currentUserId;
+  }
   try {
-    const existingSnap = await getDoc(sessionRef);
-    if (existingSnap.exists()) {
-      await updateDoc(sessionRef, {
-        userId: user.uid,
-        userEmail: user.email,
-        userName: user.displayName,
-        userPhoto: user.photoURL,
-        lastActive: serverTimestamp(),
-      });
-    } else {
-      await setDoc(sessionRef, {
-        code,
-        userId: user.uid,
-        userEmail: user.email,
-        userName: user.displayName,
-        userPhoto: user.photoURL,
-        createdAt: serverTimestamp(),
-        lastActive: serverTimestamp(),
-        lastCommand: null,
-        playerState: null,
-        paired: false,
-      });
+    const cred = await signInAnonymously(auth);
+    currentUserId = cred.user.uid;
+    return currentUserId;
+  } catch {
+    // If anonymous auth is not enabled in Firebase console, fallback to local persistent ID
+    let guestId = localStorage.getItem("gotocinema_tv_device_id");
+    if (!guestId) {
+      guestId = "tv_guest_" + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem("gotocinema_tv_device_id", guestId);
+    }
+    currentUserId = guestId;
+    return currentUserId;
+  }
+}
+
+// Fetch Watchlist (Syncs Firebase & LocalStorage)
+export async function fetchWatchlist(): Promise<WatchlistItem[]> {
+  const localItems = getLocalWatchlist();
+  try {
+    const uid = await ensureAuthUser();
+    const q = query(
+      collection(db, "users", uid, "watchlist"),
+      orderBy("addedAt", "desc")
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const remoteItems: WatchlistItem[] = snap.docs.map(d => d.data() as WatchlistItem);
+      setLocalWatchlist(remoteItems);
+      return remoteItems;
     }
   } catch (err) {
-    console.warn('[Firebase] Remote session init error:', err);
+    console.warn("Firestore sync unavailable, using local store:", err);
   }
-
-  return code;
+  return localItems;
 }
 
-/**
- * Send command from Remote to Firestore
- */
-export async function sendFirestoreCommand(
-  code: string,
-  command: RemoteCommand,
-  value?: any
-): Promise<void> {
-  if (!code) return;
-  const sessionRef = doc(db, 'remote_sessions', code);
+// Add item to Watchlist
+export async function addToWatchlist(item: WatchlistItem): Promise<void> {
+  const current = getLocalWatchlist();
+  const exists = current.some(i => i.tmdbId === item.tmdbId && i.mediaType === item.mediaType);
+  if (!exists) {
+    const updated = [item, ...current];
+    setLocalWatchlist(updated);
+  }
+
   try {
-    await updateDoc(sessionRef, {
-      lastCommand: {
-        command,
-        value: value !== undefined ? value : null,
-        timestamp: Date.now(),
-      },
-      lastActive: serverTimestamp(),
+    const uid = await ensureAuthUser();
+    const docRef = doc(db, "users", uid, "watchlist", `${item.mediaType}_${item.tmdbId}`);
+    await setDoc(docRef, {
+      ...item,
+      updatedAt: serverTimestamp()
     });
   } catch (err) {
-    console.warn('[Firebase] Error sending firestore command:', err);
+    console.warn("Firestore write error (using local storage fallback):", err);
   }
 }
 
-/**
- * Listen to remote session document (used by Remote tab to know pairing status and player state)
- */
-export function subscribeToRemoteSession(
-  code: string,
-  onUpdate: (data: RemoteSessionData) => void
-): Unsubscribe {
-  const sessionRef = doc(db, 'remote_sessions', code);
-  return onSnapshot(
-    sessionRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        onUpdate(snapshot.data() as RemoteSessionData);
-      }
-    },
-    (err) => {
-      console.warn('[Firebase] Remote session subscribe error:', err);
-    }
-  );
-}
+// Remove item from Watchlist
+export async function removeFromWatchlist(tmdbId: number, mediaType: 'movie' | 'tv' | 'anime'): Promise<void> {
+  const current = getLocalWatchlist();
+  const updated = current.filter(i => !(i.tmdbId === tmdbId && i.mediaType === mediaType));
+  setLocalWatchlist(updated);
 
-/**
- * Main Player: Connect to a remote session via 6-digit code and listen for commands
- */
-export function linkMainPlayerToSession(
-  code: string,
-  onCommand: (command: RemoteCommand, value?: any) => void,
-  onSessionLinked: (session: RemoteSessionData) => void
-): Unsubscribe {
-  const sessionRef = doc(db, 'remote_sessions', code);
-  let lastProcessedTimestamp = 0;
-
-  return onSnapshot(
-    sessionRef,
-    (snapshot) => {
-      if (!snapshot.exists()) return;
-      const data = snapshot.data() as RemoteSessionData;
-      onSessionLinked(data);
-
-      if (
-        data.lastCommand &&
-        data.lastCommand.timestamp &&
-        data.lastCommand.timestamp > lastProcessedTimestamp
-      ) {
-        lastProcessedTimestamp = data.lastCommand.timestamp;
-        onCommand(data.lastCommand.command, data.lastCommand.value);
-      }
-    },
-    (err) => {
-      console.warn('[Firebase] Main player session subscribe error:', err);
-    }
-  );
-}
-
-/**
- * Main Player: Broadcast player state to the Firestore remote session
- */
-export async function syncPlayerStateToFirestore(
-  code: string,
-  state: RemotePlayerState
-): Promise<void> {
-  if (!code) return;
-  const sessionRef = doc(db, 'remote_sessions', code);
   try {
-    await updateDoc(sessionRef, {
-      playerState: state,
-      paired: true,
-      lastActive: serverTimestamp(),
-    });
+    const uid = await ensureAuthUser();
+    const docRef = doc(db, "users", uid, "watchlist", `${mediaType}_${tmdbId}`);
+    await deleteDoc(docRef);
   } catch (err) {
-    // Non-blocking
+    console.warn("Firestore delete error (using local storage fallback):", err);
   }
 }
