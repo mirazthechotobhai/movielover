@@ -72,7 +72,7 @@ export const TvPairingBar: React.FC<TvPairingBarProps> = ({
       {/* 1. TV Screen Button (Opens TV tab reliably without popup blocker) */}
       <a
         id="btn-open-tv-mode"
-        href="?mode=tv"
+        href="?view=tv"
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => {

@@ -317,7 +317,7 @@ function MainPlayer() {
   const handleOpenTvPage = useCallback(() => {
     const origin = window.location.origin;
     const pathname = window.location.pathname;
-    const tvUrl = `${origin}${pathname}?mode=tv`;
+    const tvUrl = `${origin}${pathname}?view=tv`;
     const newWin = window.open(tvUrl, '_blank');
     if (newWin) {
       showOsd('Dedicated TV Player opened in new tab');
@@ -1096,17 +1096,35 @@ export function App() {
   const [routeMode, setRouteMode] = useState<'main' | 'remote' | 'tv'>(() => {
     if (typeof window === 'undefined') return 'main';
     const params = new URLSearchParams(window.location.search);
-    if (params.get('mode') === 'tv' || window.location.hash === '#tv') return 'tv';
-    if (params.get('mode') === 'remote' || window.location.hash === '#remote') return 'remote';
+    if (
+      params.get('view') === 'tv' ||
+      params.get('mode') === 'tv' ||
+      window.location.hash === '#tv'
+    )
+      return 'tv';
+    if (
+      params.get('view') === 'remote' ||
+      params.get('mode') === 'remote' ||
+      window.location.hash === '#remote'
+    )
+      return 'remote';
     return 'main';
   });
 
   useEffect(() => {
     const updateRoute = () => {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('mode') === 'tv' || window.location.hash === '#tv') {
+      if (
+        params.get('view') === 'tv' ||
+        params.get('mode') === 'tv' ||
+        window.location.hash === '#tv'
+      ) {
         setRouteMode('tv');
-      } else if (params.get('mode') === 'remote' || window.location.hash === '#remote') {
+      } else if (
+        params.get('view') === 'remote' ||
+        params.get('mode') === 'remote' ||
+        window.location.hash === '#remote'
+      ) {
         setRouteMode('remote');
       } else {
         setRouteMode('main');
