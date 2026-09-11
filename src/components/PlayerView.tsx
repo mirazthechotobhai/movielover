@@ -13,7 +13,8 @@ import {
   Tv, 
   ListVideo,
   X,
-  Loader2
+  Loader2,
+  FastForward
 } from 'lucide-react';
 import { ActivePlayTarget, TMDBSeasonDetails, TMDBEpisode } from '../types';
 import { tmdbService, IMAGE_BASE_W500 } from '../services/tmdb';
@@ -22,6 +23,20 @@ interface PlayerViewProps {
   playTarget: ActivePlayTarget;
   onClose: () => void;
   onChangeEpisode?: (season: number, episode: number) => void;
+}
+
+function formatTime(seconds: number): string {
+  if (isNaN(seconds) || seconds < 0) return '00:00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const mm = m < 10 ? `0${m}` : `${m}`;
+  const ss = s < 10 ? `0${s}` : `${s}`;
+  if (h > 0) {
+    const hh = h < 10 ? `0${h}` : `${h}`;
+    return `${hh}:${mm}:${ss}`;
+  }
+  return `${mm}:${ss}`;
 }
 
 export const PlayerView: React.FC<PlayerViewProps> = ({
@@ -39,6 +54,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   const [playerEventLog, setPlayerEventLog] = useState<string>('Initializing player...');
   const [currentSeason, setCurrentSeason] = useState(playTarget.season || 1);
   const [currentEpisode, setCurrentEpisode] = useState(playTarget.episode || 1);
+
+  // Playback Time Tracking (For accurate fast forward and rewind relative seeking)
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const currentTimeRef = useRef<number>(0);
+  const durationRef = useRef<number>(0);
+  const lastTimeUpdateRef = useRef<number>(Date.now());
 
   // In-Player Episodes Drawer
   const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
@@ -106,10 +128,30 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
   }, []);
 
+  // Reset auto-hide timer for OSD controls
+  const bumpControlsVisibility = useCallback(() => {
+    if (showEpisodesDrawer) return; // Keep visible while drawer is open
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    controlsTimeoutRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 4500);
+  }, [showEpisodesDrawer]);
+
+  // FIXED: Fast-Forward & Rewind using absolute seek position calculated from current playback time
   const seekRelative = useCallback((deltaSeconds: number) => {
-    sendCommand('seek', deltaSeconds);
-    setPlayerEventLog(`Seek ${deltaSeconds > 0 ? '+' : ''}${deltaSeconds}s`);
-  }, [sendCommand]);
+    const current = currentTimeRef.current || 0;
+    const target = Math.max(0, current + deltaSeconds);
+    currentTimeRef.current = target;
+    setCurrentTime(target);
+
+    // EmbedMaster expects absolute seconds for the 'seek' command
+    sendCommand('seek', Math.round(target));
+    setPlayerEventLog(`Seek ${deltaSeconds > 0 ? '+' : ''}${deltaSeconds}s (${formatTime(target)})`);
+    bumpControlsVisibility();
+  }, [sendCommand, bumpControlsVisibility]);
 
   const togglePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -121,7 +163,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       setIsPlaying(true);
       setPlayerEventLog('Playing');
     }
-  }, [isPlaying, sendCommand]);
+    bumpControlsVisibility();
+  }, [isPlaying, sendCommand, bumpControlsVisibility]);
 
   const toggleMute = useCallback(() => {
     if (isMuted) {
@@ -133,13 +176,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       setIsMuted(true);
       setPlayerEventLog('Muted');
     }
-  }, [isMuted, sendCommand]);
+    bumpControlsVisibility();
+  }, [isMuted, sendCommand, bumpControlsVisibility]);
 
   const handleSetVolume = useCallback((newVol: number) => {
     setVolumeState(newVol);
     sendCommand('volume', newVol);
     setPlayerEventLog(`Volume ${newVol}%`);
-  }, [sendCommand]);
+    bumpControlsVisibility();
+  }, [sendCommand, bumpControlsVisibility]);
 
   const triggerFullscreen = useCallback(() => {
     if (containerRef.current) {
@@ -153,12 +198,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     } else {
       sendCommand('fullscreen');
     }
-  }, [sendCommand]);
+    bumpControlsVisibility();
+  }, [sendCommand, bumpControlsVisibility]);
 
   // Next / Prev episode
   const handleNextEpisode = useCallback(() => {
     const nextEp = currentEpisode + 1;
     setCurrentEpisode(nextEp);
+    currentTimeRef.current = 0;
+    setCurrentTime(0);
     if (onChangeEpisode) onChangeEpisode(currentSeason, nextEp);
   }, [currentEpisode, currentSeason, onChangeEpisode]);
 
@@ -166,6 +214,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     if (currentEpisode > 1) {
       const prevEp = currentEpisode - 1;
       setCurrentEpisode(prevEp);
+      currentTimeRef.current = 0;
+      setCurrentTime(0);
       if (onChangeEpisode) onChangeEpisode(currentSeason, prevEp);
     }
   }, [currentEpisode, currentSeason, onChangeEpisode]);
@@ -173,43 +223,99 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   const handleSelectEpisode = (season: number, epNumber: number) => {
     setCurrentSeason(season);
     setCurrentEpisode(epNumber);
+    currentTimeRef.current = 0;
+    setCurrentTime(0);
     setShowEpisodesDrawer(false);
     if (onChangeEpisode) onChangeEpisode(season, epNumber);
     setPlayerEventLog(`Playing S${season}:E${epNumber}`);
   };
 
-  // Reset auto-hide timer for OSD controls
-  const bumpControlsVisibility = useCallback(() => {
-    if (showEpisodesDrawer) return; // Keep visible while drawer is open
-    setShowControls(true);
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-    controlsTimeoutRef.current = setTimeout(() => {
-      setShowControls(false);
-    }, 4500);
-  }, [showEpisodesDrawer]);
-
-  // Listen for EmbedMaster postMessage events
+  // Listen for EmbedMaster / PlayerJS postMessage events to maintain current time accurately
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data;
-      if (!data || data.source !== 'embedmaster_player') return;
+      if (!data) return;
 
-      if (data.event === 'play') {
+      let parsed = data;
+      if (typeof data === 'string') {
+        try {
+          parsed = JSON.parse(data);
+        } catch {
+          return;
+        }
+      }
+
+      if (parsed.source && parsed.source !== 'embedmaster_player') return;
+
+      const evtName = parsed.event || parsed.type;
+      if (!evtName) return;
+
+      if (evtName === 'play') {
         setIsPlaying(true);
-        setPlayerEventLog('Video playing');
-      } else if (data.event === 'pause') {
+        setPlayerEventLog('Playing');
+      } else if (evtName === 'pause') {
         setIsPlaying(false);
-        setPlayerEventLog('Video paused');
-      } else if (data.event) {
-        setPlayerEventLog(`Player event: ${data.event}`);
+        setPlayerEventLog('Paused');
+      } else if (evtName === 'time' || evtName === 'timeupdate') {
+        let t: number | null = null;
+        if (typeof parsed.info === 'number') {
+          t = parsed.info;
+        } else if (typeof parsed.info === 'string' && !isNaN(Number(parsed.info))) {
+          t = Number(parsed.info);
+        } else if (parsed.info && typeof parsed.info === 'object') {
+          if (typeof parsed.info.time === 'number') t = parsed.info.time;
+          else if (typeof parsed.info.currentTime === 'number') t = parsed.info.currentTime;
+          else if (typeof parsed.info.seconds === 'number') t = parsed.info.seconds;
+        } else if (typeof parsed.value === 'number') {
+          t = parsed.value;
+        }
+
+        if (t !== null && t >= 0) {
+          currentTimeRef.current = t;
+          setCurrentTime(t);
+          lastTimeUpdateRef.current = Date.now();
+        }
+
+        // Check if duration is also included in time event info
+        if (parsed.info && typeof parsed.info === 'object' && typeof parsed.info.duration === 'number' && parsed.info.duration > 0) {
+          durationRef.current = parsed.info.duration;
+          setDuration(parsed.info.duration);
+        }
+      } else if (evtName === 'duration') {
+        let d: number | null = null;
+        if (typeof parsed.info === 'number') d = parsed.info;
+        else if (typeof parsed.info === 'string' && !isNaN(Number(parsed.info))) d = Number(parsed.info);
+        else if (parsed.info && typeof parsed.info === 'object' && typeof parsed.info.duration === 'number') {
+          d = parsed.info.duration;
+        } else if (typeof parsed.value === 'number') {
+          d = parsed.value;
+        }
+
+        if (d !== null && d > 0) {
+          durationRef.current = d;
+          setDuration(d);
+        }
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
+
+  // Real-time fallback ticker: keeps local currentTime in sync every second while playing
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const interval = setInterval(() => {
+      // If no iframe 'time' event arrived in 1.5 seconds, advance currentTime locally
+      if (Date.now() - lastTimeUpdateRef.current >= 1500) {
+        currentTimeRef.current += 1;
+        setCurrentTime(currentTimeRef.current);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   // TV Remote keyboard navigation inside player
   useEffect(() => {
@@ -365,11 +471,42 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
       {/* Bottom TV Remote OSD Control HUD (Auto-Hides) */}
       <div
-        className={`absolute bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent transition-opacity duration-300 z-20 ${
+        className={`absolute bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent transition-opacity duration-300 z-20 ${
           showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         <div className="max-w-4xl mx-auto space-y-3">
+          {/* Interactive Timeline Scrubber with Time Counter */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono font-semibold text-slate-200 min-w-[50px]">
+              {formatTime(currentTime)}
+            </span>
+            <div
+              className="relative flex-1 h-4 flex items-center cursor-pointer group tv-focusable rounded-full"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                const targetTime = Math.round(pos * (duration || 3600));
+                currentTimeRef.current = targetTime;
+                setCurrentTime(targetTime);
+                sendCommand('seek', targetTime);
+                setPlayerEventLog(`Jumped to ${formatTime(targetTime)}`);
+                bumpControlsVisibility();
+              }}
+              title="Click anywhere to jump"
+            >
+              <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden group-hover:h-2 transition-all">
+                <div
+                  className="h-full bg-sky-500 rounded-full transition-all duration-150"
+                  style={{ width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+            <span className="text-xs font-mono font-medium text-slate-400 min-w-[50px] text-right">
+              {duration > 0 ? formatTime(duration) : '--:--'}
+            </span>
+          </div>
+
           {/* Controls Buttons Row */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             {/* Playback Controls */}
@@ -377,28 +514,43 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <button
                 id="player-ctrl-play"
                 onClick={togglePlayPause}
-                className="tv-focusable p-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold shadow-lg shadow-sky-500/30 transition-all cursor-pointer"
+                className="tv-focusable p-3 rounded-xl bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-white font-bold shadow-lg shadow-sky-500/30 transition-all cursor-pointer"
                 title={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
               </button>
 
+              {/* Rewind 10 Seconds */}
               <button
                 id="player-ctrl-seek-back"
                 onClick={() => seekRelative(-10)}
-                className="tv-focusable p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all cursor-pointer"
+                className="tv-focusable px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/25 text-white border border-white/15 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
                 title="Rewind 10 Seconds (Left Arrow)"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-4 h-4 text-sky-400" />
+                <span>-10s</span>
               </button>
 
+              {/* Fast Forward 10 Seconds */}
               <button
                 id="player-ctrl-seek-fwd"
                 onClick={() => seekRelative(10)}
-                className="tv-focusable p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all cursor-pointer"
+                className="tv-focusable px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/25 text-white border border-white/15 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
                 title="Fast Forward 10 Seconds (Right Arrow)"
               >
-                <RotateCw className="w-4 h-4" />
+                <RotateCw className="w-4 h-4 text-sky-400" />
+                <span>+10s</span>
+              </button>
+
+              {/* Fast Forward 30 Seconds Jump */}
+              <button
+                id="player-ctrl-seek-fwd-30"
+                onClick={() => seekRelative(30)}
+                className="tv-focusable px-2.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/25 text-white border border-white/15 transition-all cursor-pointer hidden sm:flex items-center gap-1 text-xs font-bold"
+                title="Jump Forward 30 Seconds"
+              >
+                <FastForward className="w-3.5 h-3.5 text-sky-400" />
+                <span>+30s</span>
               </button>
 
               {/* TV Episode Navigator & Episodes Picker */}
