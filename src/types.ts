@@ -1,67 +1,27 @@
-export interface TMDBMedia {
-  id: number;
-  title?: string;
-  name?: string;
-  original_title?: string;
-  original_name?: string;
-  overview: string;
-  poster_path: string | null;
-  backdrop_path: string | null;
-  release_date?: string;
-  first_air_date?: string;
-  vote_average: number;
-  vote_count: number;
-  popularity: number;
-  genre_ids?: number[];
-  genres?: { id: number; name: string }[];
-  media_type?: 'movie' | 'tv';
-  number_of_seasons?: number;
-  number_of_episodes?: number;
-  tagline?: string;
-  runtime?: number;
-  episode_run_time?: number[];
-  origin_country?: string[];
-  original_language?: string;
-  status?: string;
-}
+export type CategoryType = 'movies' | 'tv' | 'anime';
 
-export interface TMDBEpisode {
-  id: number;
-  name: string;
-  overview: string;
-  episode_number: number;
-  season_number: number;
-  still_path: string | null;
-  air_date: string;
-  vote_average: number;
-}
-
-export interface TMDBSeasonDetails {
-  id: number;
-  season_number: number;
-  name: string;
-  overview: string;
-  poster_path: string | null;
-  episodes: TMDBEpisode[];
-}
-
-export type MainCategory = 'movie' | 'tv' | 'anime';
-
-export interface ActivePlayTarget {
-  media: TMDBMedia;
-  mediaType: 'movie' | 'tv' | 'anime';
-  season: number;
-  episode: number;
-}
-
-export interface WatchlistItem {
-  id: number;
-  tmdbId: number;
+export interface MediaItem {
+  id: string;
   title: string;
-  posterPath: string | null;
-  backdropPath: string | null;
-  mediaType: 'movie' | 'tv' | 'anime';
-  voteAverage: number;
-  year: string;
-  addedAt: number;
+  category: CategoryType;
+  year: number;
+  releaseDate: string;
+  poster: string;
+  backdrop: string;
+  rating: number; // e.g., 8.9
+  genres: string[];
+  durationOrEpisodes: string; // e.g. "2h 49m" or "4 Seasons (37 Eps)"
+  directorOrStudio: string;
+  synopsis: string;
+  tagline?: string;
+  ageRating: string; // "PG-13", "TV-MA", "16+"
+  cast?: string[];
+  timelineEra: string; // e.g., "2024 - 2025 (Latest Releases)", "2020 - 2023 (Modern Era)", "2010 - 2019 (Golden Blockbusters)", "Classic Masterpieces"
+}
+
+export type RemoteButtonType = 'up' | 'down' | 'prev' | 'next' | 'ok';
+
+export interface RemoteFeedback {
+  action: string;
+  timestamp: number;
 }

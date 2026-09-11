@@ -1,6 +1,6 @@
 {
-  "name": "GoToCinema TV",
-  "description": "Smart Android TV streaming cinema app for Movies, TV Shows, and Anime powered by TMDB and EmbedMaster player with seamless remote control support.",
-  "requestFramePermissions": [],
+  "name": "Cinematic Remote",
+  "description": "A modern cinematic remote and entertainment system powered by EmbedMaster, featuring full-screen player playback, separate external bottom controls, real-time remote page synchronization, and chronological timeline browsing.",
+  "requestFramePermissions": ["microphone", "camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

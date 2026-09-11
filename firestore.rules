@@ -1,14 +1,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /tv_rooms/{roomCode} {
-      allow read, write: if true;
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
     }
+
+    // Helper function to check if user is accessing their own record
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
     match /remote_sessions/{sessionCode} {
+      // Anyone with the pairing code can read and update the session for live playback sync
       allow read, write: if true;
     }
-    match /test/{docId} {
+
+    match /rooms/{roomCode} {
+      // Direct 4-digit room node for TV player & remote control
       allow read, write: if true;
+    }
+
+    match /test/{docId} {
+      // Allow reading test document for health checks
+      allow read: if true;
     }
   }
 }
